@@ -17,7 +17,7 @@ En esta segunda iteración se elimina la capa Python y se integra todo en un ún
 ```asm
     .section .text
 
-    .globl float_to_int
+    .globl float_to_int 
     .type  float_to_int, @function
 float_to_int:
     pushq   %rbp
@@ -78,18 +78,51 @@ El flag `-lcurl` es necesario en el paso de linkeo porque las funciones `curl_*`
 ./programa
 ```
 
-<!-- Insertar screenshot del output del programa -->
+![Prueba de ejecucion](screens/1.png)
 
 ---
 
-## Depuración con GDB
+## Depuración con GDB: estado del stack en tres fases
+
+Se compila con `-g -O0` y se depura con `gdb ./programa` usando GDB Dashboard para ver registros, stack y fuente en simultáneo. Se colocan breakpoints en `main.c` (línea de la llamada a `float_to_int`) y en `float_to_int` (entrada de la función).
+
+Comandos de inspección utilizados en cada fase:
 
 ```bash
-gdb ./programa
+info registers rsp rbp rax
+x/8xg $rsp
+disassemble
 ```
 
-<!-- Insertar flujo de GDB en consola: breakpoints en float_to_int / add_offset,
-     inspección de registros %xmm0, %rdi, %rsi, %rax -->
+### Fase 1 — Antes de la llamada
+
+![Antes del call](screens/2.png)
+
+- `%rsp` y `%rbp` corresponden al frame de `main`.
+- El argumento `gini` (float) viaja por `%xmm0` según la ABI System V AMD64 (los floats no usan `%rdi`).
+- Aún no se apiló la dirección de retorno: la cima del stack todavía pertenece a las variables locales de `main`.
+- `%rax` contiene basura previa; todavía no hubo retorno.
+
+### Fase 2 — Durante la ejecución 
+
+![Durante — prólogo](screens/3.png)
+![Durante — stack frame nuevo](screens/4.png)
+
+- El `call` apiló la dirección de retorno (`%rsp -= 8`) y saltó a la función.
+- El prólogo ejecutó `pushq %rbp` (baja `%rsp` otros 8 bytes) y `movq %rsp, %rbp`, creando el stack frame propio.
+- Desde el nuevo `%rbp` el mapa del stack queda así:
+  - `0x0(%rbp)`  → valor anterior de `%rbp` (ancla del frame de `main`).
+  - `0x8(%rbp)`  → dirección de retorno a `main`.
+- `cvttss2si %xmm0, %rax` hace la conversión por truncamiento y deja el entero en `%rax` listo para retornar.
+- Notar que `float_to_int` no consume espacio extra del stack: sólo preserva `%rbp`.
+
+### Fase 3 — Después del `ret` 
+![Después del ret](screens/5.png)
+
+- El epílogo ejecutó `popq %rbp` (restaura el `%rbp` de `main`) y `ret` (desapila la dirección de retorno y salta).
+- `%rsp` y `%rbp` vuelven al estado exacto de la Fase 1.
+- `%rax` ahora contiene el entero truncado (valor de retorno), que `main` lee y asigna a `as_int`.
+- Inmediatamente después `main` prepara `%rdi = as_int`, `%rsi = 1` y llama a `add_offset`, cuyo retorno (también en `%rax`) queda en `with_offset`.
 
 ---
 
