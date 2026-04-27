@@ -7,22 +7,6 @@ Integrantes:
 - Mateo Quispe
 
 Enlace al repositorio en github: https://github.com/Tuteku/Help-me.txt
----
-
-- Crear imagen booteable: 
-
-![imagen booteable](screens/1.png)
-
-- Codificacion de instruccion: 
-
-![](screens/2.png)
-
-- Correr la imagen:
-
-![](screens/3.png)
-
-![](screens/4.png)
-
 
 ## 1. Firmware moderno: UEFI, CSME, MEBx y coreboot
 
@@ -163,27 +147,20 @@ En las dos salidas aparecen los mismos bytes, pero `objdump` los muestra etiquet
 
 ### 2.4 Probar la imagen con QEMU
 
-En vez de pasar la imagen a un pendrive y bootear de ahí, optamos por correrla directamente en QEMU, que para esta etapa nos resulta más cómodo (no hay que reiniciar la máquina, se puede enganchar GDB y si algo sale mal no se rompe nada).
 
-Los pasos que terminamos haciendo, que son los que se ven en las capturas del principio del informe (`screens/1.png` a `screens/4.png`):
+- Crear imagen booteable: 
 
-```bash
-# 1) Armamos la imagen booteable: hlt (0xF4), padding hasta el byte 510 y la firma 0x55 0xAA
-printf '\364%509s\125\252' > main.img
+![imagen booteable](screens/1.png)
 
-# 2) Para confirmar la codificación de hlt
-echo hlt > a.S
-as -o a.o a.S
-objdump -S a.o    # muestra que hlt se codifica como f4
+- Codificacion de instruccion: 
 
-# 3) Verificamos los bytes de la imagen
-hd main.img       # f4 al inicio, 55 aa al final del sector
+![](screens/2.png)
 
-# 4) Corremos la imagen en QEMU
-qemu-system-x86_64 --drive file=main.img,format=raw,index=0,media=disk
-```
+- Correr la imagen:
 
-Al levantar QEMU se ve el SeaBIOS y el "Booting from Hard Disk...", y como la única instrucción del sector es `hlt`, la CPU queda colgada ahí, que es justo lo que esperábamos.
+![](screens/3.png)
+
+![](screens/4.png)
 
 ### 2.5 ¿Para qué se utiliza la opción `--oformat binary` en el linker?
 
@@ -191,3 +168,171 @@ Por defecto `ld` genera ejecutables en formato ELF, con cabeceras, tabla de secc
 
 Con `--oformat binary` (o `-O binary` en `objcopy`) se le pide al linker que tire toda esa información de formato y deje solamente los bytes de las secciones (`.text`, `.data`, etc.) en el orden y las posiciones que dice el linker script. Lo que queda es lo que el firmware va a ejecutar tal cual. Es la opción que se usa para bootloaders, para kernels que se cargan en bare metal y para firmware embebido en general.
 
+---
+
+## 3. Modo protegido en x86: implementación en assembler
+
+### 3.1 Código assembler que pasa a modo protegido (sin macros)
+
+```asm
+
+.code16
+.global start
+
+start:
+    cli                          # deshabilitamos interrupciones
+    xor %ax, %ax
+    mov %ax, %ds
+    mov %ax, %es
+    mov %ax, %ss
+    mov $0x7C00, %sp             # stack justo debajo del bootloader
+
+    # Habilitamos la línea A20 (método rápido por puerto 0x92)
+    in $0x92, %al
+    or $2, %al
+    out %al, $0x92
+
+    # Cargamos la GDT
+    lgdt gdt_descriptor
+
+    # Activamos el bit PE de CR0
+    mov %cr0, %eax
+    or $0x1, %eax
+    mov %eax, %cr0
+
+    # Salto far para entrar definitivamente a modo protegido
+    ljmp $0x08, $protected_mode
+
+
+.code32
+protected_mode:
+    mov $0x10, %ax
+    mov %ax, %ds
+    mov %ax, %es
+    mov %ax, %ss
+    mov $0x90000, %esp
+
+    # prueba rápida: pintar una 'P' arriba a la izquierda
+    movb $'P', 0xB8000
+    movb $0x07, 0xB8001
+
+hang:
+    hlt
+    jmp hang
+
+gdt_start:
+    .quad 0                      # descriptor nulo
+
+gdt_code:                        # base 0, limit 4GB, ring 0, ejecutable
+    .word 0xFFFF
+    .word 0x0000
+    .byte 0x00
+    .byte 0b10011010
+    .byte 0b11001111
+    .byte 0x00
+
+gdt_data:                        # base 0, limit 4GB, ring 0, R/W
+    .word 0xFFFF
+    .word 0x0000
+    .byte 0x00
+    .byte 0b10010010
+    .byte 0b11001111
+    .byte 0x00
+gdt_end:
+
+gdt_descriptor:
+    .word gdt_end - gdt_start - 1
+    .long gdt_start
+
+.fill 510 - (. - start), 1, 0
+.word 0xAA55
+```
+
+### 3.2 Programa con dos descriptores en espacios de memoria diferenciados
+
+La idea acá es que el segmento de código y el de datos no se pisen, que cada uno apunte a una zona distinta de memoria. Para eso se cambia el campo base de cada descriptor:
+
+```asm
+# Código en 0x00100000, tamaño 64 KB
+gdt_code:
+    .word 0xFFFF                 # limit
+    .word 0x0000                 # base 0..15
+    .byte 0x10                   # base 16..23  -> 0x00100000
+    .byte 0b10011010             # code, RX
+    .byte 0b11000000             # granularidad por byte (G=1 si quisieras 4KB)
+    .byte 0x00                   # base 24..31
+
+# Datos en 0x00200000, tamaño 64 KB
+gdt_data:
+    .word 0xFFFF
+    .word 0x0000
+    .byte 0x20                   # base 16..23  -> 0x00200000
+    .byte 0b10010010             # data, RW
+    .byte 0b11000000
+    .byte 0x00
+```
+
+Con esta GDT, las dos zonas quedan separadas: el código no se puede sobreescribir solo, y los datos no se pueden ejecutar.
+
+### 3.3 Cambiar el segmento de datos a solo lectura
+
+En el byte de access del descriptor de datos, el bit Writable es el bit 1:
+
+```asm
+# Antes: lectura + escritura
+#   .byte 0b10010010    #  W=1
+# Después: solo lectura
+gdt_data_ro:
+    .word 0xFFFF
+    .word 0x0000
+    .byte 0x20
+    .byte 0b10010000             #  W=0  -> solo lectura
+    .byte 0b11000000
+    .byte 0x00
+```
+
+Si después del cambio se trata de escribir sucede que la CPU tira una excepción #GP (General Protection Fault, vector 13). La instrucción no se completa, la memoria no se modifica.
+
+#### ¿Qué debería suceder a continuación?
+
+Como no hay una IDT (Interrupt Descriptor Table) cargada con un manejador para `#GP`, la CPU trata de llamar al handler, no encuentra una entrada válida, y termina cayendo en una doble falla (#DF, vector 8). Si tampoco hay handler para `#DF`, viene la *triple falla*, y ahí x86 fuerza el reset del procesador. O sea, la máquina (o QEMU) se reinicia.
+
+En un sistema bien hecho lo que correspondería es tener una IDT cargada con un handler para `#GP` que registre el error y siga andando.
+
+#### Verificación con GDB
+
+Para comprobarlo  levantamos QEMU pausado y con logueo de excepciones, y le conectamos GDB:
+![](screens/verificacion1.png)
+
+Una vez que GDB frena en `_start`, se va avanzando con `stepi` por todo el código de modo real (deshabilitar interrupciones, A20, `lgdt`, setear el bit PE de `CR0`). Después del `ljmp $0x08, $protected_mode` cambiamos la arquitectura con `set architecture i386` y seguimos stepeando ya en modo protegido. La sesión completa se ve en la **Figura 2**.
+
+![Figura 2 — Sesión de GDB stepeando hasta el fault](screens/verificacion2.png)
+
+Al ejecutar `mov %ax, %ss` con `AX = 0x10`. En ese momento GDB pierde el target con `[Inferior 1 (process 1) exited normally]` (QEMU se cerró por el `-no-reboot`), y en la terminal de QEMU aparece la cadena de excepciones que muestra la **Figura 3**:
+![Figura 3 — Salida de QEMU: #GP -> #DF -> Triple fault](screens/verificacion3.png)
+
+
+Como se ve la `#GP` no saltó al escribir en memoria, saltó al **cargar `SS`** con el selector RO. Esto es porque Intel exige que `SS` apunte sí o sí a un segmento escribible (no así `DS`, `ES`, `FS` o `GS`, que aceptan RO sin problema). Como el descriptor del selector 0x10 tiene `W = 0`, el `mov %ax, %ss` ya infringe la regla y dispara la excepción.
+
+### 3.4 ¿Con qué valor se cargan los registros de segmento en modo protegido?
+
+En modo protegido los registros de segmento (`CS`, `DS`, `ES`, `FS`, `GS`, `SS`) ya no guardan direcciones, guardan selectores. Un selector son 16 bits con esta estructura:
+
+| Bits  | Significado                              |
+|-------|------------------------------------------|
+| 15-3  | Índice dentro de la GDT (o LDT)          |
+| 2     | TI (Table Indicator): 0 = GDT, 1 = LDT   |
+| 1-0   | RPL (Requested Privilege Level): 0 a 3   |
+
+
+#### ¿Por qué con esos valores?
+
+Porque en modo protegido la CPU ya no calcula `segmento:offset` como `segmento * 16 + offset`, sino que:
+
+1. Toma el selector y saca el índice.
+2. Va a la GDT y lee el descriptor que está en ese índice.
+3. De ese descriptor saca la base, el límite y los permisos.
+4. Chequea si la operación está permitida (lectura/escritura/ejecución, nivel de privilegio).
+5. Recién ahí arma la dirección lineal con `base + offset`.
+
+Entonces el selector funciona como un puntero a una entrada de la GDT, no como una dirección.
