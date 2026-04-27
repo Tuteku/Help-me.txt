@@ -114,3 +114,80 @@ El patrón común es que muchos de estos bugs son errores de validación, donde 
 - **Reproducibilidad:** las builds son deterministas, lo que ayuda a verificar que el firmware instalado corresponde al código fuente.
 - **Soporte prolongado:** placas que el fabricante ya abandonó pueden seguir recibiendo actualizaciones de la comunidad.
 
+---
+
+## 2. El linker y la generación de imágenes binarias
+
+### 2.1 ¿Qué es un linker? ¿Qué hace?
+
+El linker (o enlazador) es la herramienta que agarra uno o varios archivos objeto (`.o`) que vienen del ensamblador o del compilador y los junta en un solo ejecutable, o en una imagen binaria. Lo que hace, básicamente:
+
+- Resuelve los símbolos. Si en un archivo se llama a `imprimir()` y la definición está en otro `.o`, el linker conecta la referencia con la definición.
+- Decide en qué dirección de memoria queda cada sección (`.text`, `.data`, `.bss`, etc).
+- Ajusta las direcciones absolutas (los saltos, las llamadas, los accesos a variables) para que apunten al lugar correcto una vez ubicado el código.
+- Junta todas las secciones del mismo tipo: las `.text` de los distintos `.o` quedan en una sola `.text` del ejecutable, y lo mismo con `.data` y el resto.
+- Arma el archivo de salida en el formato pedido (ELF, PE, Mach-O o un binario plano).
+
+### 2.2 ¿Qué es la dirección que aparece en el script del linker? ¿Por qué es necesaria?
+
+En un linker script aparece:
+
+```ld
+SECTIONS {
+    . = 0x7C00;
+    .text : { *(.text) }
+    .data : { *(.data) }
+    .bss  : { *(.bss)  }
+}
+```
+
+El `. = 0x7C00;` es el location counter, y le avisa al linker que el código va a correr a partir de esa dirección. Importa porque, cuando el linker resuelve direcciones absolutas (saltos, llamadas, accesos a variables), las arma asumiendo que el binario va a estar cargado ahí.
+
+¿Por qué hace falta? Para un bootloader, la BIOS siempre carga el sector de arranque en `0x0000:0x7C00`. Si el linker asume otra base, los `jmp` y los `mov` a etiquetas terminan apuntando a lugares equivocados y el programa no anda. O sea, la dirección del linker script tiene que ser la misma dirección donde el firmware va a dejar el binario al cargarlo.
+
+### 2.3 Comparación entre `objdump` y `hd`
+
+`objdump -D` desensambla el binario interpretando las secciones según el formato (ELF u otro) y usa las direcciones del linker script. `hd` (hexdump) directamente vuelca los bytes del archivo, sin interpretar nada.
+
+Para comparar:
+
+```bash
+# Desensamblado con direcciones lógicas
+objdump -D -b binary -m i8086 boot.bin
+
+# Volcado hexadecimal del archivo
+hd boot.bin
+```
+
+En las dos salidas aparecen los mismos bytes, pero `objdump` los muestra etiquetados con la dirección que les puso el linker (`0x7C00` por ejemplo), y `hd` los muestra desde el offset 0 del archivo. De ahí se ve que el programa quedó al principio de la imagen, ocupando los primeros 510 bytes, y que los bytes 510-511 son la firma `0x55 0xAA`.
+
+### 2.4 Probar la imagen con QEMU
+
+En vez de pasar la imagen a un pendrive y bootear de ahí, optamos por correrla directamente en QEMU, que para esta etapa nos resulta más cómodo (no hay que reiniciar la máquina, se puede enganchar GDB y si algo sale mal no se rompe nada).
+
+Los pasos que terminamos haciendo, que son los que se ven en las capturas del principio del informe (`screens/1.png` a `screens/4.png`):
+
+```bash
+# 1) Armamos la imagen booteable: hlt (0xF4), padding hasta el byte 510 y la firma 0x55 0xAA
+printf '\364%509s\125\252' > main.img
+
+# 2) Para confirmar la codificación de hlt
+echo hlt > a.S
+as -o a.o a.S
+objdump -S a.o    # muestra que hlt se codifica como f4
+
+# 3) Verificamos los bytes de la imagen
+hd main.img       # f4 al inicio, 55 aa al final del sector
+
+# 4) Corremos la imagen en QEMU
+qemu-system-x86_64 --drive file=main.img,format=raw,index=0,media=disk
+```
+
+Al levantar QEMU se ve el SeaBIOS y el "Booting from Hard Disk...", y como la única instrucción del sector es `hlt`, la CPU queda colgada ahí, que es justo lo que esperábamos.
+
+### 2.5 ¿Para qué se utiliza la opción `--oformat binary` en el linker?
+
+Por defecto `ld` genera ejecutables en formato ELF, con cabeceras, tabla de secciones, tabla de símbolos, info de relocations y demás. Todo eso le sirve a un sistema operativo, pero a un bootloader no le sirve y encima molesta: la BIOS levanta los 512 bytes del primer sector y los toma como código x86, no sabe nada de ELF.
+
+Con `--oformat binary` (o `-O binary` en `objcopy`) se le pide al linker que tire toda esa información de formato y deje solamente los bytes de las secciones (`.text`, `.data`, etc.) en el orden y las posiciones que dice el linker script. Lo que queda es lo que el firmware va a ejecutar tal cual. Es la opción que se usa para bootloaders, para kernels que se cargan en bare metal y para firmware embebido en general.
+
