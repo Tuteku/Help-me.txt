@@ -291,28 +291,30 @@ gdt_data_ro:
     .byte 0x00
 ```
 
-Si después del cambio se trata de escribir sucede que la CPU tira una excepción #GP (General Protection Fault, vector 13). La instrucción no se completa, la memoria no se modifica.
+#### ¿El #GP salta al escribir en memoria?
 
-#### ¿Qué debería suceder a continuación?
+Al intentar cargar el selector RO (0x10) en `SS`, la CPU ya dispara el #GP **antes** de llegar al `movb`. Es una regla fija de la arquitectura x86 donde Intel exige que `SS` apunte **siempre** a un segmento con `W=1`. Si el descriptor tiene `W=0`, la excepción ocurre al cargar el registro, sin importar lo que venga después.
 
-Como no hay una IDT (Interrupt Descriptor Table) cargada con un manejador para `#GP`, la CPU trata de llamar al handler, no encuentra una entrada válida, y termina cayendo en una doble falla (#DF, vector 8). Si tampoco hay handler para `#DF`, viene la *triple falla*, y ahí x86 fuerza el reset del procesador. O sea, la máquina (o QEMU) se reinicia.
 
-En un sistema bien hecho lo que correspondería es tener una IDT cargada con un handler para `#GP` que registre el error y siga andando.
+#### ¿Qué sucede a continuación?
+
+Como no hay IDT cargada, la CPU intenta buscar un handler para `#GP` (vector 13), no lo encuentra, cae en doble falla `#DF` (vector 8), tampoco hay handler, y eso provoca una **triple falla**: x86 fuerza el reset del procesador. QEMU, lanzado con `-no-reboot`, se cierra en su lugar.
 
 #### Verificación con GDB
 
-Para comprobarlo  levantamos QEMU pausado y con logueo de excepciones, y le conectamos GDB:
+Levantamos QEMU pausado con logueo de excepciones y le conectamos GDB:
+
 ![](screens/verificacion1.png)
 
-Una vez que GDB frena en `_start`, se va avanzando con `stepi` por todo el código de modo real (deshabilitar interrupciones, A20, `lgdt`, setear el bit PE de `CR0`). Después del `ljmp $0x08, $protected_mode` cambiamos la arquitectura con `set architecture i386` y seguimos stepeando ya en modo protegido. La sesión completa se ve en la **Figura 2**.
+Desde `_start` avanzamos con `stepi` por el código de modo real (cli, A20, lgdt, bit PE en CR0). Tras el `ljmp $0x08, $protected_mode` ejecutamos `set architecture i386` en GDB y seguimos en modo protegido:
 
 ![Figura 2 — Sesión de GDB stepeando hasta el fault](screens/verificacion2.png)
 
-Al ejecutar `mov %ax, %ss` con `AX = 0x10`. En ese momento GDB pierde el target con `[Inferior 1 (process 1) exited normally]` (QEMU se cerró por el `-no-reboot`), y en la terminal de QEMU aparece la cadena de excepciones que muestra la **Figura 3**:
+Al intentar ejecutar `mov %ax, %ss` con `AX = 0x10`, GDB pierde el target (`[Inferior 1 (process 1) exited normally]`) y en la terminal de QEMU aparece la cadena de excepciones:
+
 ![Figura 3 — Salida de QEMU: #GP -> #DF -> Triple fault](screens/verificacion3.png)
 
-
-Como se ve la `#GP` no saltó al escribir en memoria, saltó al **cargar `SS`** con el selector RO. Esto es porque Intel exige que `SS` apunte sí o sí a un segmento escribible (no así `DS`, `ES`, `FS` o `GS`, que aceptan RO sin problema). Como el descriptor del selector 0x10 tiene `W = 0`, el `mov %ax, %ss` ya infringe la regla y dispara la excepción.
+El resultado confirma que el #GP es inevitable en este punto: con un único descriptor de datos RO no es posible cargar SS sin romperr la regla de Intel, por lo que la máquina siempre llega a triple fault antes de poder demostrar la protección sobre una escritura en memoria.
 
 ### 3.4 ¿Con qué valor se cargan los registros de segmento en modo protegido?
 
