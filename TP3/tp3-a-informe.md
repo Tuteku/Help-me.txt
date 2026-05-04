@@ -7,14 +7,18 @@ Integrantes:
 - Mateo Quispe
 
 Enlace al repositorio en github: https://github.com/Tuteku/Help-me.txt
-
+## Introducción
+El objetivo de este trabajo práctico es compilar, ejecutar y depurar una aplicación UEFI personalizada (Hello World) dentro de un entorno virtualizado con QEMU. Para ello se utiliza el framework GNU-EFI y el firmware OVMF, siguiendo como referencia las lecciones del repositorio UEFI-Lessons de Javier Borlenghi.
+### ¿Dónde se ubica nuestra aplicación en el flujo UEFI?
+Cuando el firmware UEFI arranca, pasa por las fases definidas por la especificación Platform Initialization (PI): SEC, PEI, DXE y BDS. Nuestra aplicación .efi es una UEFI Application que se carga durante la fase BDS (Boot Device Selection). En esta fase, el firmware ya ha inicializado la memoria, los buses y los servicios centrales; por lo tanto, cuando nuestro efi_main recibe el puntero a la EFI_SYSTEM_TABLE, todos los Boot Services (gestión de memoria, protocolos, eventos) ya están disponibles para ser consumidos.
+El ejecutable .efi utiliza el formato PE/COFF (PE32+), que es el estándar que la especificación UEFI exige para todas las imágenes ejecutables. Esto explica por qué el proceso de compilación incluye una conversión explícita de ELF a PE32+ mediante objcopy.
 ## 1. Instalacion del toolkit GNU-EFI
 
 Para poder compilar y ejecutar un archivo .efi personalizado, en este caso un programa que muestre un hello world, existe la posibilidad de utilizar tanto el framework EDK II o GNU-EFI. Elegimos GNU-EFI porque es mas sencilla su instalacion (disponible en apt) y mas simple para esta tarea.
 
-![Instalacion framework gnu-efi](/screens/1-a.png)
+![Instalacion framework gnu-efi](/TP3/screens/1-a.png)
 
-Codigo implementado en C para mostrar el hello world
+**Codigo implementado en C para mostrar el hello world**
 
 ```c
 #include <efi.h>
@@ -29,6 +33,12 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     return EFI_SUCCESS;
 }
 ```
+**Análisis de la firma de efi_main:**
+
+- EFI_HANDLE ImageHandle: Es el handle que identifica a nuestra propia imagen cargada en la base de datos de handles del firmware. A través de él podemos consultar protocolos asociados a nuestro ejecutable (como EFI_LOADED_IMAGE_PROTOCOL).
+- EFI_SYSTEM_TABLE *SystemTable: Es el puntero a la estructura central de UEFI. Contiene los punteros a Boot Services, Runtime Services, y las consolas de entrada/salida. Es el equivalente al "entry point" del entorno UEFI para cualquier aplicación.
+- InitializeLib(): Función de GNU-EFI que almacena internamente los punteros a la System Table y a los Boot Services, permitiendo que funciones de conveniencia como Print() funcionen sin pasar la tabla explícitamente.
+
 ## 2. Proceso de compilación
 
 La generación del `.efi` se realiza en tres etapas: compilación, linkeo y conversión de formato.
@@ -112,7 +122,7 @@ Una vez en el shell UEFI se navega al filesystem y se ejecuta el binario:
 
 
 
-### Depuración de ejecutables con llamadas a BIOS
+## 4. Depuración de ejecutables con llamadas a BIOS
 
 Al iniciar la depuración se debe utilizar el programa `qemu` para lanzar la imagen con unas flags las cuales permiten su debugeo desde el `gdb`. El comando para la compilación es el siguiente:
 ```bash
