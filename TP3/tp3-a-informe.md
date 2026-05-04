@@ -94,7 +94,7 @@ El ELF generado por el linker contiene información que UEFI no entiende (tabla 
 | `-j .reloc` | Copia las relocaciones en formato PE/COFF, que UEFI usa para reubicar el ejecutable en memoria |
 | `--target=efi-app-x86_64` | Convierte el formato de salida de ELF a PE32+ (aplicación UEFI para x86-64) |
 
-![Compilacion .o](/screens/2-a.png)
+![Compilacion .o](screens/2-a.png)
 
 ## 3. Ejecución en QEMU
 
@@ -104,8 +104,27 @@ Para correr el `.efi` se necesita un firmware UEFI (OVMF) y un disco FAT donde e
 mkdir ~/UEFI_disk
 cp HelloWorld.efi ~/UEFI_disk/
 ```
-![Compilacion .efi](/screens/3-a.png)
+![Compilacion .efi](screens/3-a.png)
 
 Una vez en el shell UEFI se navega al filesystem y se ejecuta el binario:
 
-![qemu](/screens/4-a.png)
+![qemu](screens/4-a.png)
+
+
+
+### Depuración de ejecutables con llamadas a BIOS
+
+Al iniciar la depuración se debe utilizar el programa `qemu` para lanzar la imagen con unas flags las cuales permiten su debugeo desde el `gdb`. El comando para la compilación es el siguiente:
+```bash
+qemu-system-x86_64 -fda main.img -boot a -s -S -monitor stdio
+```
+
+Luego se debe abrir desde otra terminal el `gdb` y utilizar el comando `target remote localhost:1234` para poder debugear desde la terminal con `gdb` el programa en asm:
+![Captura de pantalla de Debugging](screens/test_1.png)
+
+"Una vez iniciada la sesión en GDB, se establecen dos puntos de interrupción en las direcciones de memoria 0x7c00 y 0x7c0c:"
+![Cap Debugging_2](screens/test_2.png)
+
+Con estos breakpoints colocados estratégicamente logramos ir mediante la instrucción “continue” en gdb ir avanzando e ir viendo la impresión de a una letra por vez en la consola de qemu.
+![Cap Debugging_3](screens/test_3.png)
+
