@@ -143,15 +143,15 @@ El ELF generado por el linker contiene información que UEFI no entiende (tabla 
 ## Explorando Shell UEFI
 ### Exploracion de dispositivos (handles y protocolos)
 ![shell](screens/shell-1.png)
-
+### Analisis de varibles globales
 ![shell](screens/shell-2.png)
 
 ![shell](screens/shell-3.png)
-
+### Footprinting de memoria y hardware
 ![shell](screens/shell-4.png)
 
 ![shell](screens/shell-5.png)
-
+### Analisis de metadato y compilacion
 ![ghidra](screens/ghidra.png)
 
 ## 3. Ejecución en QEMU
