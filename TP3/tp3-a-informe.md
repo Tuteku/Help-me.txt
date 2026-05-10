@@ -8,10 +8,54 @@ Integrantes:
 
 Enlace al repositorio en github: https://github.com/Tuteku/Help-me.txt
 ## Introducción
-El objetivo de este trabajo práctico es compilar, ejecutar y depurar una aplicación UEFI personalizada (Hello World) dentro de un entorno virtualizado con QEMU. Para ello se utiliza el framework GNU-EFI y el firmware OVMF, siguiendo como referencia las lecciones del repositorio UEFI-Lessons de Javier Borlenghi.
-### ¿Dónde se ubica nuestra aplicación en el flujo UEFI?
-Cuando el firmware UEFI arranca, pasa por las fases definidas por la especificación Platform Initialization (PI): SEC, PEI, DXE y BDS. Nuestra aplicación .efi es una UEFI Application que se carga durante la fase BDS (Boot Device Selection). En esta fase, el firmware ya ha inicializado la memoria, los buses y los servicios centrales; por lo tanto, cuando nuestro efi_main recibe el puntero a la EFI_SYSTEM_TABLE, todos los Boot Services (gestión de memoria, protocolos, eventos) ya están disponibles para ser consumidos.
-El ejecutable .efi utiliza el formato PE/COFF (PE32+), que es el estándar que la especificación UEFI exige para todas las imágenes ejecutables. Esto explica por qué el proceso de compilación incluye una conversión explícita de ELF a PE32+ mediante objcopy.
+
+<a name="_page2_x70.87_y70.87"></a>El objetivo de este trabajo práctico es compilar, ejecutar y depurar una aplicación UEFI personalizada (Hello World) dentro de un entorno virtualizado con QEMU. Para ello se utiliza el framework GNU-EFI y el firmware OVMF, siguiendo como referencia las lecciones del repositorio UEFI-Lessons de Javier Borlenghi.
+
+**Cuestionario<a name="_page2_x70.87_y165.38"></a> de Análisis y Desarrollo (Q&A)** 
+
+¿Dónde se ubica nuestra aplicación en el flujo UEFI?
+
+Cuando el firmware UEFI arranca, pasa por las fases definidas por la especificación Platform Initialization (PI): SEC, PEI, DXE y BDS. Nuestra aplicación es.efi una UEFI Applic queation se carga durante la fase BDS (Boot Device Selection). En esta fase, el firmware ya ha inicializado
+
+la memoria, los buses y los servicios centrales; por lo tanto, cuando nuestro efi\_main recibe
+
+el puntero a la EFI\_SYSTEM\_TABLE, todos los Boot Services (gestión de memoria, protocolos, eventos) ya están disponibles para ser consumidos.
+
+El ejecutable .efi utiliza el formato PE/COFF (PE32+), que es el estándar que la es- pecificación UEFI exige para todas las imágenes ejecutables. Esto explica por qué el proceso de compilación incluye una conversión explícita de ELF a PE32+ mediante objc .opy
+
+1. Al ejecutar los comandos map y dh, se observan protocolos e identificadores en lugar de direcciones de E/S fijas. ¿Qué ventajas en términos de seguridad y compatibilidad ofrece este modelo respecto al BIOS tradicional?
+
+   El paso de un modelo basado en puertos de hardware fijos a uno basado en Protocolos e Instancias de Handles ofrece mejoras críticas:
+
+- Seguridad: Se establece una capa de abstracción que impide el acceso directo y arbitrario a los registros del hardware. Al interactuar mediante interfaces definidas (protocolos), se limita el radio de acción de código malicioso, evitando que este manipule registros críticos fuera de su ámbito de ejecución.
+- Compatibilidad: La abstracción permite que las aplicaciones EFI sean independientes del hardware subyacente. Un desarrollador puede escribir código que interactúe con un bloque de almacenamiento o una interfaz de red sin conocer los detalles específicos del controlador, facilitando la interoperabilidad entre distintos fabricantes y generaciones de hardware.
+2. Considerando las variables Boot#### y BootOrder, ¿cuál es el mecanismo que utiliza el Boot Manager para establecer la secuencia de arranque?
+
+   El Boot Manager opera mediante una estructura de prioridades definida en variables de entorno no volátiles (NVRAM):
+
+- Cada variable Boot#### contiene una carga útil (load option) que apunta a un dispositivo físico y una ruta de archivo específica del cargador de arranque.
+- La variable BootOrder contiene un arreglo de índices que dicta la jerarquía de ejecución. El firmware recorre esta lista secuencialmente, intentando cargar cada opción hasta que una de ellas se ejecute con éxito (EFI\_SUCCESS).
+3. En el mapa de memoria (memmap), ¿por qué las regiones categorizadas como RuntimeServicesCode representan un vector de ataque crítico para el desarrollo de Bootkits?
+
+   Las regiones RuntimeServicesCode son altamente vulnerables y codiciadas por el malware de tipo Bootkit debido a su persistencia:
+
+- A diferencia de los BootServices, que se liberan mediante la función ExitBootServi ,ces() los servicios de runtime permanecen en memoria después de que el sistema operativo ha tomado el control.
+- Esto permite que el código malicioso se ejecute con los máximos privilegios del procesa- dor (Ring -2), invisibilizando su presencia ante soluciones de seguridad del SO (antivirus) y garantizando persistencia absoluta incluso tras reinicios del sistema.
+4. ¿Cuál es la razón técnica para utilizar SystemTable->ConOut->OutputString en lugar de la función estándar printf() de C durante el desarrollo en UEFI?
+
+   La ausencia de la función printf() se debe a que, en el entorno bare-metal de UEFI, no existe una biblioteca estándar de C (libc) ni un sistema operativo que gestione los descriptores de archivos.
+
+- printf() es una función de alto nivel que requiere un sistema de soporte subyacente para el flujo de salida.
+- OutputString es un método del protocolo EFI\_SIMPLE\_TEXT\_OUTPUT\_PROTOCOL, propor- cionado directamente por el firmware. Es la interfaz nativa y disponible para enviar datos
+
+  a la consola de salida antes de que cualquier sistema operativo sea cargado.
+
+5. En herramientas de ingeniería inversa como Ghidra, el valor hexadecimal 0xCC suele interpretarse como -52. ¿Por qué ocurre esto y cuál es su relevancia en el ámbito de la ciberseguridad?
+
+Este fenómeno es una consecuencia de la interpretación de tipos de datos en la descompilación:
+
+- El valor 0xCC en binario es 11001100. Si el descompilador interpreta este byte como un entero de 8 bits con signo (signed char), el bit más significativo indica un valor negativo en complemento a dos, resultando en .-52
+- En ciberseguridad, 0xCC es la instrucción INT 3 (punto de interrupción) en arquitecturas x86. Es fundamental reconocer que un mismo patrón de bytes puede ser visualizado de distintas formas según el casting. Ignorar esto podría llevar a analistas a omitir firmas de detección (como reglas YARA) o a malinterpretar técnicas de anti-debugging integradas en el binario.
 ## 1. Instalacion del toolkit GNU-EFI
 
 Para poder compilar y ejecutar un archivo .efi personalizado, en este caso un programa que muestre un hello world, existe la posibilidad de utilizar tanto el framework EDK II o GNU-EFI. Elegimos GNU-EFI porque es mas sencilla su instalacion (disponible en apt) y mas simple para esta tarea.
