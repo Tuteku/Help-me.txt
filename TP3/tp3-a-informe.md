@@ -141,16 +141,16 @@ El ELF generado por el linker contiene información que UEFI no entiende (tabla 
 ![Compilacion .o](screens/cli.png)
 
 ## Explorando Shell UEFI
+### Exploracion de dispositivos (handles y protocolos)
+![shell](/screens/shell-1.png)
 
-![](/screens/shell-1.png)
+![shell](/screens/shell-2.png)
 
-![](/screens/shell-2.png)
+![shell](/screens/shell-3.png)
 
-![](/screens/shell-3.png)
+![shell](/screens/shell-4.png)
 
-![](/screens/shell-4.png)
-
-![](/screens/shell-5.png)
+![shell](/screens/shell-5.png)
 
 ![ghidra](/screens/ghidra.png)
 
