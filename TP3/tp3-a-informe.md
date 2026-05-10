@@ -16,7 +16,7 @@ El ejecutable .efi utiliza el formato PE/COFF (PE32+), que es el estándar que l
 
 Para poder compilar y ejecutar un archivo .efi personalizado, en este caso un programa que muestre un hello world, existe la posibilidad de utilizar tanto el framework EDK II o GNU-EFI. Elegimos GNU-EFI porque es mas sencilla su instalacion (disponible en apt) y mas simple para esta tarea.
 
-![Instalacion framework gnu-efi](/TP3/screens/1-a.png)
+![Instalacion framework gnu-efi](/screens/1-a.png)
 
 **Codigo implementado en C para mostrar el hello world**
 
@@ -46,9 +46,7 @@ La generación del `.efi` se realiza en tres etapas: compilación, linkeo y conv
 ### 2.1 Etapa 1: compilación del objeto (`.c` → `.o`)
 
 ```bash
-gcc -I/usr/include/efi -I/usr/include/efi/x86_64 \
-    -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
-    -c HelloWorld.c -o HelloWorld.o
+gcc -I/usr/include/efi -I/usr/include/efi/x86_64 -fno-stack-protector -fpic -fshort-wchar -c HelloWorld.c -o HelloWorld.o
 ```
 
 | Flag | Descripción |
@@ -58,23 +56,17 @@ gcc -I/usr/include/efi -I/usr/include/efi/x86_64 \
 | `-fno-stack-protector` | Desactiva el canary de stack. El protector inserta llamadas a `__stack_chk_fail` que pertenece a la libc, la cual no existe en el entorno UEFI |
 | `-fpic` | Genera código independiente de posición (Position Independent Code). Necesario porque el `.efi` puede ser cargado en cualquier dirección de memoria |
 | `-fshort-wchar` | Hace que `wchar_t` mida 2 bytes en vez de 4. UEFI usa UTF-16 (2 bytes por carácter), mientras que en Linux por defecto es de 4 bytes |
-| `-mno-red-zone` | Desactiva la red zone de x86-64. La ABI de Linux reserva 128 bytes por debajo de `%rsp` como área temporal, pero las interrupciones de UEFI pueden pisarla, lo que causaría corrupción de datos |
 | `-c` | Compila sin linkear, generando el archivo objeto `.o` |
 
 ### 2.2 Etapa 2: linkeo (`.o` → `.so`)
 
 ```bash
-ld -nostdlib -znocombreloc \
-   -T /usr/lib/elf_x86_64_efi.lds \
-   -shared -Bsymbolic \
-   -L/usr/lib /usr/lib/crt0-efi-x86_64.o \
-   HelloWorld.o -o HelloWorld.so -lefi -lgnuefi
+ld -nostdlib -T /usr/lib/elf_x86_64_efi.lds -shared -Bsymbolic -L/usr/lib /usr/lib/crt0-efi-x86_64.o HelloWorld.o -o HelloWorld.so -lefi -lgnuefi
 ```
 
 | Flag | Descripción |
 |------|-------------|
 | `-nostdlib` | No linkea la librería estándar de C. En UEFI no existe libc |
-| `-znocombreloc` | Impide combinar relocaciones de tipo relativo, necesario para que el formato PE/COFF resultante sea válido |
 | `-T /usr/lib/elf_x86_64_efi.lds` | Usa el linker script de gnu-efi, que define el orden y alineación de las secciones del ejecutable para que sean compatibles con UEFI |
 | `-shared` | Genera un objeto compartido (`.so`), paso intermedio antes de convertir a `.efi` |
 | `-Bsymbolic` | Resuelve las referencias a símbolos propios directamente, sin pasar por la GOT (Global Offset Table) |
@@ -86,9 +78,7 @@ ld -nostdlib -znocombreloc \
 ### 2.3 Etapa 3: conversión de formato (`.so` → `.efi`)
 
 ```bash
-objcopy -j .text -j .sdata -j .data -j .dynamic \
-        -j .dynsym -j .rel -j .rela -j .reloc \
-        --target=efi-app-x86_64 HelloWorld.so HelloWorld.efi
+objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .reloc --target=efi-app-x86_64 HelloWorld.so HelloWorld.efi
 ```
 
 El ELF generado por el linker contiene información que UEFI no entiende (tabla de secciones ELF, símbolos de debug, etc.). `objcopy` extrae solo las secciones necesarias y las reempaqueta en formato PE32+, que es el formato de ejecutable que el firmware UEFI puede cargar y ejecutar.
@@ -104,7 +94,19 @@ El ELF generado por el linker contiene información que UEFI no entiende (tabla 
 | `-j .reloc` | Copia las relocaciones en formato PE/COFF, que UEFI usa para reubicar el ejecutable en memoria |
 | `--target=efi-app-x86_64` | Convierte el formato de salida de ELF a PE32+ (aplicación UEFI para x86-64) |
 
-![Compilacion .o](screens/2-a.png)
+![Compilacion .o](screens/cli.png)
+
+## Explorando Shell UEFI
+
+![](/screens/shell-1.png)
+
+![](/screens/shell-2.png)
+
+![](/screens/shell-3.png)
+
+![](/screens/shell-4.png)
+
+![](/screens/shell-5.png)
 
 ## 3. Ejecución en QEMU
 
@@ -119,7 +121,6 @@ cp HelloWorld.efi ~/UEFI_disk/
 Una vez en el shell UEFI se navega al filesystem y se ejecuta el binario:
 
 ![qemu](screens/4-a.png)
-
 
 
 ## 4. Depuración de ejecutables con llamadas a BIOS

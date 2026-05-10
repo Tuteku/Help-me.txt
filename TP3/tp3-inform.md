@@ -106,7 +106,7 @@ El patrón común es que muchos de estos bugs son errores de validación, donde 
 
 El linker (o enlazador) es la herramienta que agarra uno o varios archivos objeto (`.o`) que vienen del ensamblador o del compilador y los junta en un solo ejecutable, o en una imagen binaria. Lo que hace, básicamente:
 
-- Resuelve los símbolos. Si en un archivo se llama a `imprimir()` y la definición está en otro `.o`, el linker conecta la referencia con la definición.
+- Resuelve los símbolos. Si en un archivo se llama a una funcion como por ejemplo `imprimir()` y la definición está en otro `.o`, el linker conecta la referencia con la definición.
 - Decide en qué dirección de memoria queda cada sección (`.text`, `.data`, `.bss`, etc).
 - Ajusta las direcciones absolutas (los saltos, las llamadas, los accesos a variables) para que apunten al lugar correcto una vez ubicado el código.
 - Junta todas las secciones del mismo tipo: las `.text` de los distintos `.o` quedan en una sola `.text` del ejecutable, y lo mismo con `.data` y el resto.
@@ -187,9 +187,9 @@ start:
     mov %ax, %ss
     mov $0x7C00, %sp             # stack justo debajo del bootloader
 
-    # Habilitamos la línea A20 (método rápido por puerto 0x92)
+    # Habilitamos accesos a memoria por encima de 1MB Linea A20 (Permite que el sistema acceda al modo protegido)
     in $0x92, %al
-    or $2, %al
+    or $2, %al                  # ponemos bit en 1 A20
     out %al, $0x92
 
     # Cargamos la GDT
