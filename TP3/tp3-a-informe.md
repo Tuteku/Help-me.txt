@@ -108,6 +108,8 @@ El ELF generado por el linker contiene información que UEFI no entiende (tabla 
 
 ![](/screens/shell-5.png)
 
+![ghidra](/screens/ghidra.png)
+
 ## 3. Ejecución en QEMU
 
 Para correr el `.efi` se necesita un firmware UEFI (OVMF) y un disco FAT donde esté el ejecutable. QEMU permite exponer un directorio local directamente como disco FAT sin necesidad de crear ni formatear una imagen:
