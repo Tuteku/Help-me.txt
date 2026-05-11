@@ -184,7 +184,7 @@ Luego se debe abrir desde otra terminal el `gdb` y utilizar el comando `target r
 
 Con estos breakpoints colocados estratégicamente logramos ir mediante la instrucción “continue” en gdb ir avanzando e ir viendo la impresión de a una letra por vez en la consola de qemu.
 ![Cap Debugging_3](screens/test_3.png)
-## 7. Conclusión
+## 5. Conclusión
 
 <a name="_page7_x70.87_y600.86"></a>Como conclusión, el desarrollo de este trabajo práctico permitió profundizar en la arquitectura UEFI y su transición desde el modelo legacy. La implementación de una aplicación en C utilizando el framework GNU-EFI fue fundamental para comprender la fase BDS (Boot Device Selection) y el uso de servicios básicos del firmware sin la intermediación de un sistema operativo. Asimismo, el proceso de depuración mediante QEMU y GDB demostró la complejidad técnica que implica trabajar en niveles tan cercanos al hardware, resaltando la importancia de la especificación PE/COFF y el manejo de protocolos UEFI para el desarrollo de software de bajo nivel seguro y eficiente.
 8
