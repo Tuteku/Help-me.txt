@@ -13,7 +13,7 @@ Enlace al repositorio en github: https://github.com/Tuteku/Help-me.txt
 
 **Cuestionario<a name="_page2_x70.87_y165.38"></a> de Análisis y Desarrollo (Q&A)** 
 
-¿Dónde se ubica nuestra aplicación en el flujo UEFI?
+**¿Dónde se ubica nuestra aplicación en el flujo UEFI?**
 
 Cuando el firmware UEFI arranca, pasa por las fases definidas por la especificación Platform Initialization (PI): SEC, PEI, DXE y BDS. Nuestra aplicación es.efi una UEFI Applic queation se carga durante la fase BDS (Boot Device Selection). En esta fase, el firmware ya ha inicializado
 
@@ -23,25 +23,28 @@ el puntero a la EFI\_SYSTEM\_TABLE, todos los Boot Services (gestión de memoria
 
 El ejecutable .efi utiliza el formato PE/COFF (PE32+), que es el estándar que la es- pecificación UEFI exige para todas las imágenes ejecutables. Esto explica por qué el proceso de compilación incluye una conversión explícita de ELF a PE32+ mediante objc .opy
 
-1. Al ejecutar los comandos map y dh, se observan protocolos e identificadores en lugar de direcciones de E/S fijas. ¿Qué ventajas en términos de seguridad y compatibilidad ofrece este modelo respecto al BIOS tradicional?
+1- Al ejecutar los comandos map y dh, se observan protocolos e identificadores en lugar de direcciones de E/S fijas. ¿Qué ventajas en términos de seguridad y compatibilidad ofrece este modelo respecto al BIOS tradicional?
 
    El paso de un modelo basado en puertos de hardware fijos a uno basado en Protocolos e Instancias de Handles ofrece mejoras críticas:
 
 - Seguridad: Se establece una capa de abstracción que impide el acceso directo y arbitrario a los registros del hardware. Al interactuar mediante interfaces definidas (protocolos), se limita el radio de acción de código malicioso, evitando que este manipule registros críticos fuera de su ámbito de ejecución.
 - Compatibilidad: La abstracción permite que las aplicaciones EFI sean independientes del hardware subyacente. Un desarrollador puede escribir código que interactúe con un bloque de almacenamiento o una interfaz de red sin conocer los detalles específicos del controlador, facilitando la interoperabilidad entre distintos fabricantes y generaciones de hardware.
-2. Considerando las variables Boot#### y BootOrder, ¿cuál es el mecanismo que utiliza el Boot Manager para establecer la secuencia de arranque?
+
+2- Considerando las variables Boot#### y BootOrder, ¿cuál es el mecanismo que utiliza el Boot Manager para establecer la secuencia de arranque?
 
    El Boot Manager opera mediante una estructura de prioridades definida en variables de entorno no volátiles (NVRAM):
 
 - Cada variable Boot#### contiene una carga útil (load option) que apunta a un dispositivo físico y una ruta de archivo específica del cargador de arranque.
 - La variable BootOrder contiene un arreglo de índices que dicta la jerarquía de ejecución. El firmware recorre esta lista secuencialmente, intentando cargar cada opción hasta que una de ellas se ejecute con éxito (EFI\_SUCCESS).
-3. En el mapa de memoria (memmap), ¿por qué las regiones categorizadas como RuntimeServicesCode representan un vector de ataque crítico para el desarrollo de Bootkits?
+
+3- En el mapa de memoria (memmap), ¿por qué las regiones categorizadas como RuntimeServicesCode representan un vector de ataque crítico para el desarrollo de Bootkits?
 
    Las regiones RuntimeServicesCode son altamente vulnerables y codiciadas por el malware de tipo Bootkit debido a su persistencia:
 
 - A diferencia de los BootServices, que se liberan mediante la función ExitBootServi ,ces() los servicios de runtime permanecen en memoria después de que el sistema operativo ha tomado el control.
 - Esto permite que el código malicioso se ejecute con los máximos privilegios del procesa- dor (Ring -2), invisibilizando su presencia ante soluciones de seguridad del SO (antivirus) y garantizando persistencia absoluta incluso tras reinicios del sistema.
-4. ¿Cuál es la razón técnica para utilizar SystemTable->ConOut->OutputString en lugar de la función estándar printf() de C durante el desarrollo en UEFI?
+
+4- ¿Cuál es la razón técnica para utilizar SystemTable->ConOut->OutputString en lugar de la función estándar printf() de C durante el desarrollo en UEFI?
 
    La ausencia de la función printf() se debe a que, en el entorno bare-metal de UEFI, no existe una biblioteca estándar de C (libc) ni un sistema operativo que gestione los descriptores de archivos.
 
@@ -50,7 +53,7 @@ El ejecutable .efi utiliza el formato PE/COFF (PE32+), que es el estándar que l
 
   a la consola de salida antes de que cualquier sistema operativo sea cargado.
 
-5. En herramientas de ingeniería inversa como Ghidra, el valor hexadecimal 0xCC suele interpretarse como -52. ¿Por qué ocurre esto y cuál es su relevancia en el ámbito de la ciberseguridad?
+5- En herramientas de ingeniería inversa como Ghidra, el valor hexadecimal 0xCC suele interpretarse como -52. ¿Por qué ocurre esto y cuál es su relevancia en el ámbito de la ciberseguridad?
 
 Este fenómeno es una consecuencia de la interpretación de tipos de datos en la descompilación:
 
@@ -154,17 +157,17 @@ El ELF generado por el linker contiene información que UEFI no entiende (tabla 
 ### Analisis de metadato y compilacion
 ![ghidra](screens/ghidra.png)
 
-## 4. Ejecución en Hardware 
+## 3. Ejecución en Hardware 
 
 ### Preparación del medio de arranque
 
-![](/screens/part3-usb.png)
+![](screens/part3-usb.png)
 
 ### Ejecución en Bare Metal
 
-![](/screens/usb.jpg)
+![](screens/usb.jpg)
 
-## 3. Ejecución en QEMU
+## 4. Ejecución en QEMU
 
 Para correr el `.efi` se necesita un firmware UEFI (OVMF) y un disco FAT donde esté el ejecutable. QEMU permite exponer un directorio local directamente como disco FAT sin necesidad de crear ni formatear una imagen:
 
@@ -179,7 +182,7 @@ Una vez en el shell UEFI se navega al filesystem y se ejecuta el binario:
 ![qemu](screens/4-a.png)
 
 
-## 4. Depuración de ejecutables con llamadas a BIOS
+## 5. Depuración de ejecutables con llamadas a BIOS
 
 Al iniciar la depuración se debe utilizar el programa `qemu` para lanzar la imagen con unas flags las cuales permiten su debugeo desde el `gdb`. El comando para la compilación es el siguiente:
 ```bash
@@ -194,7 +197,7 @@ Luego se debe abrir desde otra terminal el `gdb` y utilizar el comando `target r
 
 Con estos breakpoints colocados estratégicamente logramos ir mediante la instrucción “continue” en gdb ir avanzando e ir viendo la impresión de a una letra por vez en la consola de qemu.
 ![Cap Debugging_3](screens/test_3.png)
-## 5. Conclusión
+## 6. Conclusión
 
 <a name="_page7_x70.87_y600.86"></a>Como conclusión, el desarrollo de este trabajo práctico permitió profundizar en la arquitectura UEFI y su transición desde el modelo legacy. La implementación de una aplicación en C utilizando el framework GNU-EFI fue fundamental para comprender la fase BDS (Boot Device Selection) y el uso de servicios básicos del firmware sin la intermediación de un sistema operativo. Asimismo, el proceso de depuración mediante QEMU y GDB demostró la complejidad técnica que implica trabajar en niveles tan cercanos al hardware, resaltando la importancia de la especificación PE/COFF y el manejo de protocolos UEFI para el desarrollo de software de bajo nivel seguro y eficiente.
 8
