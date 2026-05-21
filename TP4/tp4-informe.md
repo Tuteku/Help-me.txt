@@ -81,7 +81,7 @@ which hello              # /usr/local/bin/hello
 hello                    # ejecuta nuestro binario
 sudo apt remove hello-sdc # desinstalación limpia
 ```
-
+![](screens/hello.png)
 ### Seguridad del kernel: firma de módulos y rootkits
 
 Un **rootkit** es malware que se instala con los máximos privilegios del sistema (a nivel kernel) para ocultar su presencia y mantener acceso persistente. El vector clásico de un rootkit moderno es justamente **cargarse como módulo de kernel**: una vez insertado, puede hookear *syscalls*, ocultar procesos en `/proc`, esconder archivos a `ls`, e incluso enmascararse en `lsmod`. Como corre en *ring 0*, está por encima de cualquier antivirus de espacio de usuario.
@@ -125,22 +125,24 @@ La CPU x86 implementa cuatro niveles de privilegio (anillos 0 a 3). Linux usa so
 | **Espacio de kernel** | 0 | Total | Directo (I/O, MMU, interrupciones) | Toda la memoria física |
 | **Espacio de usuario** | 3 | Restringido | Sólo vía syscalls | Memoria virtual propia (aislada por proceso) |
 
-El cruce entre espacios se hace mediante una **syscall** (interrupción de software / `syscall`/`sysenter`), que cambia el modo de la CPU y salta a un punto controlado del kernel. Esto da aislamiento: un puntero salvaje en un programa de usuario sólo rompe ese proceso, mientras que un puntero salvaje en un módulo puede tirar abajo el sistema entero (de ahí el chiste del "core dump significa reinicio").
+El cruce entre espacios se hace mediante una **syscall** (interrupción de software), que cambia el modo de la CPU y salta a un punto controlado del kernel. Esto da aislamiento: un puntero salvaje en un programa de usuario sólo rompe ese proceso, mientras que un puntero salvaje en un módulo puede tirar abajo el sistema entero.
 
 ### Espacio de datos
 
 El **data space** de un programa de usuario está formado por el segmento de datos inicializados (`.data`), no inicializados (`.bss`), el heap y la pila, y vive dentro de la memoria virtual del proceso. Cada proceso tiene su propio mapa, gestionado por la MMU y descrito en `/proc/<pid>/maps`.
 
-En el módulo de kernel no hay tal aislamiento: las variables globales del módulo viven en el espacio de direcciones del kernel, compartido con el resto del kernel y con todos los demás módulos. Por eso, al manejar datos provenientes del usuario hay que usar `copy_from_user()`/`copy_to_user()` y nunca dereferenciar directamente un puntero proveniente de userspace (sería una vulnerabilidad de tipo *arbitrary read/write*).
+En el módulo de kernel no hay tal aislamiento: las variables globales del módulo viven en el espacio de direcciones del kernel, compartido con el resto del kernel y con todos los demás módulos. Por eso, al manejar datos provenientes del usuario hay que usar `copy_from_user()`/`copy_to_user()` y nunca desreferenciar directamente un puntero proveniente de userspace (sería una vulnerabilidad de tipo *arbitrary read/write*).
 
 ### Drivers y contenido de /dev
 
-Un *driver* es el código que media entre el kernel y un dispositivo de hardware (o un dispositivo virtual). Los drivers exponen sus dispositivos al userspace a través de archivos especiales en `/dev`, que son de dos tipos:
+Un *driver* es el código que media entre el kernel y un dispositivo (físico o virtual) y lo expone al userspace como un archivo especial en `/dev`. La primera letra de `ls -l` indica el tipo:
 
-- **Block devices** (`b` en `ls -l`): acceso por bloques de tamaño fijo, p. ej. `/dev/sda`, `/dev/nvme0n1`.
-- **Character devices** (`c` en `ls -l`): acceso por flujo de bytes, p. ej. `/dev/tty1`, `/dev/random`, `/dev/null`.
+- **Block devices** (`b`): acceso por bloques, p. ej. en nuestra PC `/dev/nvme0n1` (el SSD) y `/dev/loop0..31` (loopback que usa Ubuntu para montar los *snaps*).
+- **Character devices** (`c`): acceso por flujo de bytes, p. ej. `/dev/null`, `/dev/random`, `/dev/fb0`.
 
-Cada nodo en `/dev` está identificado por un par *major number* / *minor number*. El *major* identifica al driver y el *minor* a la instancia concreta del dispositivo. La asignación se ve con `ls -l /dev` y se documenta en `Documentation/admin-guide/devices.txt` del árbol del kernel. En sistemas modernos `/dev` es poblado dinámicamente por `udev` a partir de los eventos que emite el kernel cuando se carga un driver.
+Donde un archivo normal muestra el tamaño, un device muestra dos números **major, minor**: el *major* identifica al **driver** (en nuestra salida todos los `loop` comparten el major `7` y las particiones NVMe el `259`) y el *minor* a la **instancia** concreta (`nvme0n1` vs. su partición `nvme0n1p1`). En sistemas modernos `/dev` lo puebla dinámicamente `udev` cuando el kernel carga un driver. El subdirectorio `/dev/block/` confirma la idea: son symlinks nombrados `major:minor` que apuntan al nodo real (ej. `259:0 -> ../nvme0n1`), evidenciando que lo que identifica unívocamente al dispositivo y a su driver es ese par numérico, no el nombre legible.
+
+![](screens/b.png)
 
 ---
 
@@ -378,3 +380,78 @@ Es una solución **funcional pero degradada en seguridad**; la solución correct
 
 Secure Boot es un mecanismo definido en UEFI cuyo objetivo es **garantizar la integridad y autenticidad del software que se ejecuta antes del sistema operativo**. Funciona como una cadena de verificación criptográfica: el firmware solo carga binarios (`bootloader`, `shim`, kernel) cuya firma digital esté hecha con una clave presente en la base de datos `db` del firmware, y que no figure en la lista de revocación `dbx`. De esta forma se previene que un atacante con acceso al almacenamiento (físico o vía malware) instale un *bootkit* o reemplace el cargador de arranque por uno comprometido: si lo hiciera, el firmware detectaría la firma inválida y se rehusaría a arrancar.
 
+---
+
+## Trabajo grupal pendiente
+
+Estas son las partes que **no se pueden hacer solo** y que tenemos que coordinar entre los tres integrantes. Para cada una dejo qué hay que correr y qué tenemos que entregar:
+
+### A. Pregunta 2 — Comparación de módulos cargados entre las PCs del grupo
+
+**Cada integrante** corre en su propia PC:
+
+```bash
+lsmod > lsmod-<nombre>.txt
+cat /proc/modules > procmodules-<nombre>.txt
+uname -a > uname-<nombre>.txt
+lscpu > lscpu-<nombre>.txt
+```
+
+Sube esos `.txt` a `TP4/comparativa/` en el repo. Después, en el informe (esta sección), hacemos los diffs:
+
+```bash
+diff lsmod-mauro.txt lsmod-nicolas.txt
+diff lsmod-mauro.txt lsmod-mateo.txt
+diff lsmod-nicolas.txt lsmod-mateo.txt
+```
+
+Y explicamos las diferencias: típicamente vienen de distinto hardware (drivers wifi/gpu distintos), distinta distro/kernel (`uname -r`), o software instalado que cargó módulos (VirtualBox carga `vboxdrv`, Docker carga `overlay`, etc.).
+
+### B. Pregunta 10 — Carga cruzada de módulo firmado con Secure Boot
+
+Esto es una **prueba experimental conjunta**. Pasos:
+
+1. **Uno** de nosotros (ej. Mateo) firma su `mimodulo.ko` con su propio par de claves MOK (como en la pregunta 8).
+2. **Otro** integrante (ej. Mauro o Nicolas) que tenga **Secure Boot habilitado** y **no haya importado** la clave de Mateo intenta cargar ese mismo `mimodulo.ko`:
+   ```bash
+   sudo insmod mimodulo.ko
+   sudo dmesg | tail
+   ```
+3. El resultado esperado es que `insmod` falle con algo como:
+   ```
+   insmod: ERROR: could not insert module mimodulo.ko: Key was rejected by service
+   ```
+   y `dmesg` muestre `Loading of unsigned module is rejected` o `PKCS#7 signature not signed with a trusted key`.
+4. Documentamos la captura de `dmesg` y explicamos por qué pasó: la clave pública de quien firmó **no está en el MOK store** de la otra máquina, así que Secure Boot rechaza el módulo aunque esté correctamente firmado. La cadena de confianza es por-máquina.
+
+### C. Pregunta 4 — `hwinfo` en hardware real
+
+Cada uno corre en su PC física (no en VM):
+
+```bash
+sudo apt install hwinfo
+sudo hwinfo --short > hwinfo-<nombre>.txt
+sudo hwinfo > hwinfo-<nombre>-completo.txt
+```
+
+Subimos los archivos al repo y referenciamos la URL en la pregunta 4 del informe.
+
+### D. Pregunta 9 — Evidencia individual de carga/descarga
+
+Cada uno corre el ciclo `make / insmod / dmesg / rmmod` con su hostname y aporta:
+- Screenshot o `.txt` de `dmesg` mostrando el mensaje con el hostname propio.
+- Archivo en `TP4/evidencia/dmesg-<nombre>.txt`.
+
+### E. Coloquios grupales (Desafíos #1 y #2)
+
+Los desafíos se evalúan en **coloquio oral grupal**, no por escrito. Lo que está en este informe son los apuntes para defender oralmente:
+- Desafío #1: saber explicar checkinstall, mostrar el `.deb` empaquetado, y argumentar sobre firma de módulos y rootkits.
+- Desafío #2: poder responder en vivo las cuatro preguntas (funciones disponibles, espacios de usuario/kernel, espacio de datos, drivers/`/dev`).
+
+Conviene que cada uno repase todas las respuestas, porque en el coloquio le pueden preguntar a cualquiera.
+
+---
+
+## Conclusiones
+
+Trabajar con módulos de kernel nos obligó a movernos del modelo cómodo de "programa con libc" a uno donde no hay red de contención: cualquier error se paga con un Oops o un reboot. Esa diferencia explica por qué Linux distingue tan estrictamente entre espacio de usuario y de kernel, y por qué mecanismos como la firma de módulos y Secure Boot son centrales para mantener la integridad del sistema. El incidente del parche de Microsoft de 2024 deja en evidencia que esa cadena de confianza, cuando se rompe por un actor con privilegios de actualización, puede dejar inutilizables sistemas enteros — y que la "solución fácil" de desactivar Secure Boot tiene un costo real en seguridad.
