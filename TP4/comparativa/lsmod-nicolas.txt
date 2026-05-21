@@ -1,0 +1,153 @@
+Module                  Size  Used by
+rfcomm                102400  4
+snd_seq_dummy          12288  0
+snd_hrtimer            12288  1
+xt_MASQUERADE          16384  2
+bridge                421888  0
+stp                    12288  1 bridge
+llc                    16384  2 bridge,stp
+xfrm_user              65536  1
+xfrm_algo              16384  1 xfrm_user
+xt_set                 20480  0
+ip_set                 61440  1 xt_set
+nft_chain_nat          12288  5
+nf_nat                 61440  2 nft_chain_nat,xt_MASQUERADE
+vxlan                 159744  0
+ip6_udp_tunnel         16384  1 vxlan
+udp_tunnel             32768  1 vxlan
+overlay               217088  0
+qrtr                   53248  2
+cmac                   12288  3
+algif_hash             16384  1
+algif_skcipher         12288  1
+af_alg                 32768  6 algif_hash,algif_skcipher
+bnep                   32768  2
+ip6t_REJECT            12288  1
+nf_reject_ipv6         20480  1 ip6t_REJECT
+xt_hl                  12288  22
+ip6t_rt                16384  3
+ipt_REJECT             12288  1
+nf_reject_ipv4         12288  1 ipt_REJECT
+xt_LOG                 16384  10
+nf_log_syslog          20480  10
+nft_limit              16384  13
+xt_limit               12288  0
+xt_addrtype            12288  8
+xt_tcpudp              16384  60
+xt_conntrack           12288  18
+nf_conntrack          200704  3 xt_conntrack,nf_nat,xt_MASQUERADE
+nf_defrag_ipv6         24576  1 nf_conntrack
+nf_defrag_ipv4         12288  1 nf_conntrack
+nft_compat             20480  125
+nf_tables             385024  685 nft_compat,nft_chain_nat,nft_limit
+snd_hda_codec_hdmi     98304  1
+binfmt_misc            24576  1
+nls_iso8859_1          12288  1
+intel_rapl_msr         20480  0
+intel_rapl_common      53248  1 intel_rapl_msr
+snd_hda_codec_realtek   212992  1
+i915                 4702208  31
+snd_hda_codec_generic   122880  1 snd_hda_codec_realtek
+nouveau              3010560  1
+snd_hda_scodec_component    20480  1 snd_hda_codec_realtek
+cmdlinepart            16384  0
+snd_hda_intel          61440  4
+spi_nor               163840  0
+snd_intel_dspcfg       45056  1 snd_hda_intel
+snd_intel_sdw_acpi     16384  1 snd_intel_dspcfg
+x86_pkg_temp_thermal    20480  0
+mtd                    98304  3 spi_nor,cmdlinepart
+intel_powerclamp       24576  0
+snd_hda_codec         204800  4 snd_hda_codec_generic,snd_hda_codec_hdmi,snd_hda_intel,snd_hda_codec_realtek
+mxm_wmi                12288  1 nouveau
+snd_hda_core          147456  5 snd_hda_codec_generic,snd_hda_codec_hdmi,snd_hda_intel,snd_hda_codec,snd_hda_codec_realtek
+coretemp               24576  0
+drm_gpuvm              45056  1 nouveau
+polyval_clmulni        12288  0
+snd_hwdep              20480  1 snd_hda_codec
+gpu_sched              61440  1 nouveau
+polyval_generic        12288  1 polyval_clmulni
+drm_buddy              24576  1 i915
+ghash_clmulni_intel    16384  0
+drm_ttm_helper         16384  1 nouveau
+uvcvideo              143360  0
+btusb                  73728  0
+sha256_ssse3           32768  0
+snd_pcm               192512  5 snd_hda_codec_hdmi,snd_hda_intel,snd_hda_codec,snd_hda_core
+btrtl                  32768  1 btusb
+sha1_ssse3             32768  0
+videobuf2_vmalloc      20480  1 uvcvideo
+btintel                69632  1 btusb
+uvc                    12288  1 uvcvideo
+aesni_intel           122880  4
+videobuf2_memops       16384  1 videobuf2_vmalloc
+btbcm                  24576  1 btusb
+snd_seq_midi           24576  0
+crypto_simd            16384  1 aesni_intel
+videobuf2_v4l2         36864  1 uvcvideo
+ttm                   118784  3 drm_ttm_helper,i915,nouveau
+btmtk                  36864  1 btusb
+snd_seq_midi_event     16384  1 snd_seq_midi
+cryptd                 24576  3 crypto_simd,ghash_clmulni_intel
+spi_intel_platform     12288  0
+drm_exec               12288  2 drm_gpuvm,nouveau
+wl                   6488064  0
+at24                   28672  0
+mei_hdcp               28672  0
+spi_intel              36864  1 spi_intel_platform
+mei_pxp                16384  0
+snd_rawmidi            57344  1 snd_seq_midi
+videobuf2_common       86016  4 videobuf2_vmalloc,videobuf2_v4l2,uvcvideo,videobuf2_memops
+drm_display_helper    278528  2 i915,nouveau
+snd_seq               122880  9 snd_seq_midi,snd_seq_midi_event,snd_seq_dummy
+bluetooth            1011712  34 btrtl,btmtk,btintel,btbcm,bnep,btusb,rfcomm
+videodev              360448  2 videobuf2_v4l2,uvcvideo
+snd_seq_device         16384  3 snd_seq,snd_seq_midi,snd_rawmidi
+cec                    94208  2 drm_display_helper,i915
+snd_timer              53248  3 snd_seq,snd_hrtimer,snd_pcm
+rapl                   20480  0
+mc                     81920  4 videodev,videobuf2_v4l2,uvcvideo,videobuf2_common
+intel_cstate           20480  0
+rc_core                73728  1 cec
+i2c_i801               36864  0
+cfg80211             1437696  1 wl
+mei_me                 53248  2
+snd                   143360  20 snd_hda_codec_generic,snd_seq,snd_seq_device,snd_hda_codec_hdmi,snd_hwdep,snd_hda_intel,snd_hda_codec,snd_hda_codec_realtek,snd_timer,snd_pcm,snd_rawmidi
+i2c_algo_bit           16384  2 i915,nouveau
+i2c_smbus              20480  1 i2c_i801
+i2c_mux                16384  1 i2c_i801
+ideapad_laptop         53248  0
+soundcore              16384  1 snd
+mei                   172032  5 mei_hdcp,mei_pxp,mei_me
+lpc_ich                32768  0
+sparse_keymap          12288  1 ideapad_laptop
+platform_profile       20480  1 ideapad_laptop
+input_leds             12288  0
+joydev                 32768  0
+mac_hid                12288  0
+serio_raw              20480  0
+sch_fq_codel           24576  3
+msr                    12288  0
+parport_pc             53248  0
+ppdev                  24576  0
+lp                     28672  0
+parport                73728  3 parport_pc,lp,ppdev
+efi_pstore             12288  0
+nfnetlink              20480  5 nft_compat,nf_tables,ip_set
+dmi_sysfs              24576  0
+ip_tables              32768  0
+x_tables               65536  13 xt_conntrack,nft_compat,xt_LOG,xt_tcpudp,xt_addrtype,ip6t_rt,xt_set,ipt_REJECT,ip_tables,xt_limit,xt_hl,xt_MASQUERADE,ip6t_REJECT
+autofs4                57344  2
+hid_multitouch         36864  0
+hid_generic            12288  0
+usbhid                 77824  0
+hid                   262144  3 usbhid,hid_multitouch,hid_generic
+rtsx_pci_sdmmc         36864  0
+r8169                 126976  0
+ahci                   49152  4
+psmouse               217088  0
+rtsx_pci              143360  1 rtsx_pci_sdmmc
+realtek                49152  1
+libahci                53248  1 ahci
+video                  77824  3 ideapad_laptop,i915,nouveau
+wmi                    28672  4 video,ideapad_laptop,mxm_wmi,nouveau
