@@ -1,0 +1,72 @@
+designer@designer:~/Documentos/SDC/kenel-modules/part1/module$ lsmod
+Module              	Size  Used by
+mimodulo           	16384  0
+vboxvideo          	28672  0
+drm_vram_helper    	24576  1 vboxvideo
+drm_ttm_helper     	16384  2 drm_vram_helper,vboxvideo
+nls_iso8859_1      	16384  1
+snd_intel8x0       	49152  2
+snd_ac97_codec    	155648  1 snd_intel8x0
+ac97_bus           	16384  1 snd_ac97_codec
+intel_rapl_msr     	20480  0
+snd_pcm           	135168  2 snd_intel8x0,snd_ac97_codec
+binfmt_misc        	24576  1
+snd_seq_midi       	20480  0
+snd_seq_midi_event 	16384  1 snd_seq_midi
+intel_rapl_common  	40960  1 intel_rapl_msr
+snd_rawmidi        	49152  1 snd_seq_midi
+rapl               	20480  0
+joydev             	32768  0
+snd_seq            	77824  2 snd_seq_midi,snd_seq_midi_event
+snd_seq_device     	16384  3 snd_seq,snd_seq_midi,snd_rawmidi
+snd_timer          	40960  2 snd_seq,snd_pcm
+snd               	106496  11 snd_seq,snd_seq_device,snd_intel8x0,snd_timer,snd_ac97_codec,snd_pcm,snd_rawmidi
+input_leds         	16384  0
+serio_raw          	20480  0
+soundcore          	16384  1 snd
+vboxguest         	405504  5
+mac_hid            	16384  0
+sch_fq_codel       	24576  2
+msr                	16384  0
+parport_pc         	53248  0
+ppdev              	24576  0
+lp                 	28672  0
+parport            	69632  3 parport_pc,lp,ppdev
+ramoops            	28672  0
+reed_solomon       	28672  1 ramoops
+pstore_blk         	16384  0
+efi_pstore         	16384  0
+pstore_zone        	32768  1 pstore_blk
+ip_tables          	32768  0
+x_tables           	53248  1 ip_tables
+autofs4            	49152  2
+crct10dif_pclmul   	16384  1
+crc32_pclmul       	16384  0
+ghash_clmulni_intel	16384  0
+sha256_ssse3       	32768  0
+sha1_ssse3         	32768  0
+hid_generic        	16384  0
+vmwgfx            	364544  2
+ttm                	86016  3 vmwgfx,drm_vram_helper,drm_ttm_helper
+aesni_intel       	376832  0
+crypto_simd        	16384  1 aesni_intel
+cryptd             	24576  2 crypto_simd,ghash_clmulni_intel
+drm_kms_helper    	311296  3 vmwgfx,drm_vram_helper,vboxvideo
+syscopyarea        	16384  1 drm_kms_helper
+sysfillrect        	20480  1 drm_kms_helper
+sysimgblt          	16384  1 drm_kms_helper
+psmouse           	180224  0
+fb_sys_fops        	16384  1 drm_kms_helper
+ahci               	49152  2
+libahci            	49152  1 ahci
+cec                	65536  1 drm_kms_helper
+i2c_piix4          	28672  0
+rc_core            	65536  1 cec
+usbhid             	65536  0
+hid               	147456  2 usbhid,hid_generic
+drm               	618496  8 vmwgfx,drm_kms_helper,drm_vram_helper,vboxvideo,drm_ttm_helper,ttm
+e1000             	155648  0
+video              	61440  0
+pata_acpi          	16384  0
+
+

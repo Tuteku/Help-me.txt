@@ -1,0 +1,173 @@
+1d0
+< ac97_bus
+3a3
+> ahci
+6,9c6
+< amd_atl
+< amdgpu
+< amd_pmc
+< amdxcp
+---
+> at24
+20,21d16
+< ccm
+< ccp
+24a20,23
+> cmdlinepart
+> coretemp
+> cryptd
+> crypto_simd
+29,30c28
+< drm_panel_backlight_quirks
+< drm_suballoc_helper
+---
+> drm_gpuvm
+32d29
+< edac_mce_amd
+39d35
+< hp_wmi
+41,43c37,38
+< i2c_hid
+< i2c_hid_acpi
+< i2c_piix4
+---
+> i2c_i801
+> i2c_mux
+44a40,41
+> i915
+> ideapad_laptop
+45a43,44
+> intel_cstate
+> intel_powerclamp
+47a47,48
+> ip6t_REJECT
+> ip6t_rt
+51c52
+< irqbypass
+---
+> ipt_REJECT
+53,56c54
+< k10temp
+< kvm
+< kvm_amd
+< libarc4
+---
+> libahci
+59c57
+< mac80211
+---
+> lpc_ich
+61a60,63
+> mei
+> mei_hdcp
+> mei_me
+> mei_pxp
+62a65,66
+> mtd
+> mxm_wmi
+64d67
+< nf_conntrack_netlink
+66a70
+> nf_log_syslog
+68a73,74
+> nf_reject_ipv4
+> nf_reject_ipv6
+71a78
+> nft_limit
+73,76c80
+< nvme
+< nvme_auth
+< nvme_core
+< nvme_keyring
+---
+> nouveau
+81a86
+> polyval_generic
+82a88
+> psmouse
+89,92c95,96
+< rtw89_8852c
+< rtw89_8852ce
+< rtw89_core
+< rtw89_pci
+---
+> rtsx_pci
+> rtsx_pci_sdmmc
+94a99,100
+> sha1_ssse3
+> sha256_ssse3
+96,102d101
+< snd_acp_config
+< snd_acp_legacy_common
+< snd_acp_pci
+< snd_amd_acpi_mach
+< snd_amd_sdw_acpi
+< snd_compress
+< snd_ctl_led
+104,105d102
+< snd_hda_codec_alc269
+< snd_hda_codec_atihdmi
+108c105
+< snd_hda_codec_realtek_lib
+---
+> snd_hda_codec_realtek
+116,119d112
+< snd_pci_acp3x
+< snd_pci_acp5x
+< snd_pci_acp6x
+< snd_pci_ps
+121d113
+< snd_pcm_dmaengine
+123,124d114
+< snd_rn_pci_acp3x
+< snd_rpl_pci_acp6x
+130,144d119
+< snd_soc_acpi
+< snd_soc_acpi_amd_match
+< snd_soc_acpi_amd_sdca_quirks
+< snd_soc_core
+< snd_soc_sdca
+< snd_sof
+< snd_sof_amd_acp
+< snd_sof_amd_acp63
+< snd_sof_amd_acp70
+< snd_sof_amd_rembrandt
+< snd_sof_amd_renoir
+< snd_sof_amd_vangogh
+< snd_sof_pci
+< snd_sof_utils
+< snd_sof_xtensa_dsp
+147,149d121
+< soundwire_amd
+< soundwire_bus
+< soundwire_generic_allocation
+150a123,125
+> spi_intel
+> spi_intel_platform
+> spi_nor
+152d126
+< thunderbolt
+154,156d127
+< typec
+< typec_ucsi
+< ucsi_acpi
+157a129
+> usbhid
+160d131
+< veth
+168c139
+< wireless_hotkey
+---
+> wl
+170c141
+< wmi_bmof
+---
+> x86_pkg_temp_thermal
+173d143
+< xhci_pci_renesas
+176a147,149
+> xt_hl
+> xt_limit
+> xt_LOG
+178d150
+< xt_nat
