@@ -390,27 +390,23 @@ Es una falla de protección de memoria. La MMU dispara una excepción de página
 
 **Cómo lo maneja el kernel:** la excepción de página la atrapa el manejador de *page faults*. Si el acceso era legítimo (página *swappeada*, *copy-on-write*, *demand paging*) el kernel resuelve y devuelve el control. Si no, el kernel envía la señal `SIGSEGV` al proceso ofensor.
 
-**Cómo lo maneja el programa:** por defecto, `SIGSEGV` tiene como acción terminar el proceso y generar un *core dump* (si `ulimit -c` lo permite). El programa puede registrar un handler con `signal()`/`sigaction()` para capturarla, pero hacerlo es delicado: lo recomendable es solo loguear y abortar, porque el estado interno tras un segfault es indefinido.
-
-Si la misma falla ocurriera **dentro de un módulo de kernel**, no hay "proceso al que matar": el kernel genera un **Oops**. Dependiendo de la gravedad, el sistema sigue funcionando con el subsistema afectado roto, o entra en *kernel panic* y se cuelga.
+**Cómo lo maneja el programa:** por defecto, `SIGSEGV` tiene como acción terminar el proceso y generar un *core dump*.
+Si la misma falla ocurriera dentro de un módulo de kernel, el kernel genera un **Oops**. Dependiendo de la gravedad, el sistema sigue funcionando con el subsistema afectado roto o se cuelga.
 
 ### 8. Firmar un módulo de kernel
 
-El proceso (siguiendo el link de askubuntu) es:
+El proceso es:
 
 ```bash
 # 1. Generar par de claves x509 para firmar módulos
-openssl req -new -x509 -newkey rsa:2048 -keyout MOK.key \
-            -outform DER -out MOK.der -nodes -days 36500 \
-            -subj "/CN=Help-me-txt module signing/"
+openssl req -new -x509 -newkey rsa:2048 -keyout MOK.key -outform DER -out MOK.der -nodes -days 36500 -subj "/CN=Help-me-txt module signing/"
 
 # 2. Inscribir la clave pública en el MOK (Machine Owner Key) del firmware
 sudo mokutil --import MOK.der
 # pide contraseña; al próximo reboot UEFI muestra MOKManager para confirmar
 
 # 3. Firmar el módulo con sign-file (viene con linux-headers o kernel-source)
-sudo /usr/src/linux-headers-$(uname -r)/scripts/sign-file \
-     sha256 MOK.key MOK.der mimodulo.ko
+sudo /usr/src/linux-headers-$(uname -r)/scripts/sign-file sha256 MOK.key MOK.der mimodulo.ko
 
 # 4. Cargar
 sudo insmod mimodulo.ko
@@ -465,79 +461,22 @@ sudo dmesg | tail -n 5     # captura: "Help-me.txt: modulo descargado de <hostna
 
 > **Esta es una prueba grupal: hay que tomar el `.ko` firmado por uno de los integrantes e intentar cargarlo en la PC de otro integrante que tenga Secure Boot habilitado.** Ver "Trabajo grupal pendiente" más abajo.
 
-### 11. Análisis del parche de Microsoft (Ars Technica, agosto 2024)
+### 11. Análisis del parche de Microsoft (Ars Technica)
 
 **a) ¿Cuál fue la consecuencia principal del parche de Microsoft sobre GRUB en sistemas con arranque dual (Linux y Windows)?**
 
-El parche `SBAT` (Secure Boot Advanced Targeting) que Microsoft empujó vía Windows Update — pensado para invalidar versiones vulnerables de bootloaders firmados — **revocó implícitamente la confianza en versiones de GRUB usadas por muchas distros de Linux**. En equipos con dual boot, al rebootear después del update de Windows, GRUB ya no era aceptado por el firmware UEFI bajo Secure Boot: el equipo arrancaba directamente a Windows o quedaba con la pantalla de violación de Secure Boot, dejando Linux inarrancable. La consecuencia práctica fue masiva: usuarios de Ubuntu, Debian, Linux Mint, Zorin y otras distros perdieron el acceso a su instalación de Linux sin haber tocado nada en ese sistema.
+El problema es que ese parche terminó revocando la confianza en versiones de GRUB que un montón de distros de Linux seguían usando. Entonces el usuario actualizaba Windows pensando que era un update normal y, al reiniciar, el firmware UEFI ya no aceptaba a GRUB: la máquina arrancaba derecho a Windows o directamente tiraba el error de violación de Secure Boot, y Linux quedaba inarrancable. Lo llamativo es que el sistema Linux no se tocó en ningún momento, igual quedó inservible. Le pasó a usuarios de Ubuntu, Debian, Mint, Zorin y varias más, así que el impacto fue grande.
 
 **b) ¿Qué implicancia tiene desactivar Secure Boot como solución al problema descrito?**
 
-Desactivar Secure Boot desbloquea el arranque de Linux, pero **rompe la cadena de confianza** del sistema:
+Apagar Secure Boot volvés a poder bootear Linux, pero en realidad rompés toda la cadena de confianza del arranque. En concreto:
 
-- El firmware deja de verificar la firma del bootloader y del kernel, lo que abre la puerta a *bootkits* que se ejecuten antes que el SO.
-- Cualquier módulo de kernel — firmado o no — puede ser cargado, incluyendo rootkits.
-- En Windows, deshabilitar Secure Boot puede invalidar funciones como BitLocker (que usa el TPM ligado al estado de Secure Boot) y obligar a reingresar la clave de recuperación.
-- En entornos corporativos, viola políticas de compliance (la mayoría exigen Secure Boot encendido).
-
-Es una solución **funcional pero degradada en seguridad**; la solución correcta era actualizar GRUB a una versión que el nuevo SBAT acepta.
+- El firmware deja de chequear la firma del bootloader y del kernel, así que se abre la puerta a *bootkits* que corran incluso antes que el SO.
+- Cualquier módulo de kernel se puede cargar, esté firmado o no, lo que incluye posibles rootkits.
 
 **c) ¿Cuál es el propósito principal del Secure Boot en el proceso de arranque?**
 
-Secure Boot es un mecanismo definido en UEFI cuyo objetivo es **garantizar la integridad y autenticidad del software que se ejecuta antes del sistema operativo**. Funciona como una cadena de verificación criptográfica: el firmware solo carga binarios (`bootloader`, `shim`, kernel) cuya firma digital esté hecha con una clave presente en la base de datos `db` del firmware, y que no figure en la lista de revocación `dbx`. De esta forma se previene que un atacante con acceso al almacenamiento (físico o vía malware) instale un *bootkit* o reemplace el cargador de arranque por uno comprometido: si lo hiciera, el firmware detectaría la firma inválida y se rehusaría a arrancar.
-
----
-
-## Trabajo grupal pendiente
-
-Estas son las partes que **no se pueden hacer solo** y que tenemos que coordinar entre los tres integrantes. Para cada una dejo qué hay que correr y qué tenemos que entregar:
-
-### A. Pregunta 2 — Comparación de módulos cargados entre las PCs del grupo ✅ *(resuelta)*
-
-Ya está hecha: los tres `lsmod-*.txt` están en `TP4/comparativa/`, los diffs en `comparativa/diff-*.txt`, y el análisis quedó redactado en la **pregunta 2** del informe.
-
-### B. Pregunta 10 — Carga cruzada de módulo firmado con Secure Boot
-
-Esto es una **prueba experimental conjunta**. Pasos:
-
-1. **Uno** de nosotros (ej. Mateo) firma su `mimodulo.ko` con su propio par de claves MOK (como en la pregunta 8).
-2. **Otro** integrante (ej. Mauro o Nicolas) que tenga **Secure Boot habilitado** y **no haya importado** la clave de Mateo intenta cargar ese mismo `mimodulo.ko`:
-   ```bash
-   sudo insmod mimodulo.ko
-   sudo dmesg | tail
-   ```
-3. El resultado esperado es que `insmod` falle con algo como:
-   ```
-   insmod: ERROR: could not insert module mimodulo.ko: Key was rejected by service
-   ```
-   y `dmesg` muestre `Loading of unsigned module is rejected` o `PKCS#7 signature not signed with a trusted key`.
-4. Documentamos la captura de `dmesg` y explicamos por qué pasó: la clave pública de quien firmó **no está en el MOK store** de la otra máquina, así que Secure Boot rechaza el módulo aunque esté correctamente firmado. La cadena de confianza es por-máquina.
-
-### C. Pregunta 4 — `hwinfo` en hardware real
-
-Cada uno corre en su PC física (no en VM):
-
-```bash
-sudo apt install hwinfo
-sudo hwinfo --short > hwinfo-<nombre>.txt
-sudo hwinfo > hwinfo-<nombre>-completo.txt
-```
-
-Subimos los archivos al repo y referenciamos la URL en la pregunta 4 del informe.
-
-### D. Pregunta 9 — Evidencia individual de carga/descarga
-
-Cada uno corre el ciclo `make / insmod / dmesg / rmmod` con su hostname y aporta:
-- Screenshot o `.txt` de `dmesg` mostrando el mensaje con el hostname propio.
-- Archivo en `TP4/evidencia/dmesg-<nombre>.txt`.
-
-### E. Coloquios grupales (Desafíos #1 y #2)
-
-Los desafíos se evalúan en **coloquio oral grupal**, no por escrito. Lo que está en este informe son los apuntes para defender oralmente:
-- Desafío #1: saber explicar checkinstall, mostrar el `.deb` empaquetado, y argumentar sobre firma de módulos y rootkits.
-- Desafío #2: poder responder en vivo las cuatro preguntas (funciones disponibles, espacios de usuario/kernel, espacio de datos, drivers/`/dev`).
-
-Conviene que cada uno repase todas las respuestas, porque en el coloquio le pueden preguntar a cualquiera.
+La idea de Secure Boot es asegurarse de que todo lo que se ejecuta *antes* de que arranque el sistema operativo sea de confianza y no haya sido manipulado. Funciona como una cadena de verificaciones criptográficas: el firmware solo deja correr binarios cuya firma digital esté hecha con una clave que figure en su base `db`, y siempre que esa firma no esté en la lista negra `dbx` de cosas revocadas.
 
 ---
 
