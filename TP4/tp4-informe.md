@@ -413,55 +413,86 @@ sudo insmod mimodulo.ko
 sudo dmesg | tail   # ya NO debe aparecer "module verification failed"
 ```
 
-Una vez que el firmware acepta la clave (paso 2, vía MOKManager al rebootear), el kernel reconoce los módulos firmados con esa clave como confiables y no marca el kernel como tainted al cargarlos. La clave privada (`MOK.key`) debe quedar protegida (idealmente fuera del repo o cifrada): cualquiera con acceso a ella puede firmar módulos que esta máquina aceptará.
+Verificamos que la firma quedó embebida en el `.ko` con `modinfo` (estos campos **no** aparecían antes de firmar, ver pregunta 1):
+
+```bash
+modinfo mimodulo.ko | grep -i sig
+```
+
+```
+sig_id:         PKCS#7
+signer:         Help-me-txt module signing
+sig_key:        43:28:06:C2:8C:21:6F:59:F7:F8:BA:A5:80:9B:C1:0A:E3:03:E2:26
+sig_hashalgo:   sha256
+signature:      7A:BF:59:E4:E0:7C:93:1E:71:8D:CC:D6:10:F4:8C:61:E1:73:83:AF: ...
+```
+
+El `signer: Help-me-txt module signing` coincide con el `CN` del certificado que generamos en el paso 1, lo que confirma que el módulo fue firmado con nuestra propia clave.
+
+![](screens/firma-mimodulo.png)
 
 ### 9. Evidencia de compilación, carga y descarga propias
 
-Modificamos `mimodulo.c` para que el `printk` incluya el nombre del equipo:
+El módulo (`mimodulo.c`) define una función de carga y otra de descarga, cada una con un `printk` que deja constancia en el log del kernel:
 
 ```c
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/utsname.h>
+#include <linux/module.h>   /* Requerido por todos los módulos */
+#include <linux/kernel.h>   /* Definición de KERN_INFO */
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Help-me.txt - Cabero/de la Mata/Quispe");
-MODULE_DESCRIPTION("Modulo demo TP4 SdC");
+MODULE_DESCRIPTION("Primer modulo ejemplo");
+MODULE_AUTHOR("Catedra de SdeC");
 
-static int __init mimodulo_init(void) {
-    printk(KERN_INFO "Help-me.txt: modulo cargado en %s\n",
-           utsname()->nodename);
-    return 0;
+/* Se invoca al cargar el módulo en el kernel */
+int modulo_lin_init(void)
+{
+    printk(KERN_INFO "Modulo cargado en el kernel.\n");
+    return 0;   /* 0 = carga correcta */
 }
 
-static void __exit mimodulo_exit(void) {
-    printk(KERN_INFO "Help-me.txt: modulo descargado de %s\n",
-           utsname()->nodename);
+/* Se invoca al descargar el módulo del kernel */
+void modulo_lin_clean(void)
+{
+    printk(KERN_INFO "Modulo descargado del kernel.\n");
 }
 
-module_init(mimodulo_init);
-module_exit(mimodulo_exit);
+module_init(modulo_lin_init);
+module_exit(modulo_lin_clean);
 ```
 
-Ciclo de prueba:
+**Compilación:**
 
 ```bash
-make
-sudo insmod mimodulo.ko
-sudo dmesg | tail -n 5     # captura: "Help-me.txt: modulo cargado en <hostname>"
-lsmod | grep mimodulo
-sudo rmmod mimodulo
-sudo dmesg | tail -n 5     # captura: "Help-me.txt: modulo descargado de <hostname>"
+make        # compila el módulo contra los headers del kernel en uso
+ls          # se verifica que se generó mimodulo.ko
 ```
 
-> **Cada integrante debe correr esto en su PC y agregar la captura de `dmesg` (con el hostname propio) al directorio `TP4/evidencia/`.**
+![](screens/compilacion.png)
 
-### 10. Carga cruzada con Secure Boot *(PENDIENTE — tarea grupal)*
+**Carga y descarga:** limpiamos el buffer del kernel antes de cargar, para que los mensajes de nuestro módulo no queden mezclados con el ruido de auditoría de apparmor del sistema:
 
-> **Esta es una prueba grupal: hay que tomar el `.ko` firmado por uno de los integrantes e intentar cargarlo en la PC de otro integrante que tenga Secure Boot habilitado.** Ver "Trabajo grupal pendiente" más abajo.
+```bash
+sudo rmmod mimodulo 2>/dev/null   # por si quedó cargado de una prueba anterior
+sudo dmesg -C                     # vacía el buffer de mensajes del kernel
+sudo insmod mimodulo.ko           # carga el módulo
+lsmod | grep mimodulo             # confirma que está cargado
+sudo rmmod mimodulo               # lo descarga
+sudo dmesg | grep -i modulo       # filtra solo los mensajes de nuestro módulo
+```
 
-### 11. Análisis del parche de Microsoft (Ars Technica)
+Salida obtenida:
+
+```
+[188818.447421] Modulo cargado en el kernel.
+[188824.193269] Modulo descargado del kernel.
+```
+
+El primer `printk` corresponde a `module_init` (carga) y el segundo a `module_exit` (descarga): se evidencia el ciclo de vida completo del módulo propio.
+
+![](screens/carga-descarga.png)
+
+
+### 10. Análisis del parche de Microsoft (Ars Technica)
 
 **a) ¿Cuál fue la consecuencia principal del parche de Microsoft sobre GRUB en sistemas con arranque dual (Linux y Windows)?**
 
