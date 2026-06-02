@@ -40,23 +40,10 @@ file_operations: es la estructura central del driver. Es una tabla que le dice a
 Transferencia de datos: dado que el kernel y el espacio de usuario tienen espacios de memoria separados, se usan las funciones copy_to_user() (para read) y copy_from_user() (para write) para mover datos de forma segura entre ambos mundos.
 ### El modelo de capas del CDD
 El flujo de datos en nuestro sistema sigue cuatro capas:
-┌──────────────────────────────────────────┐
-│  Application (sensor_app.py)             │
-│  → open("/dev/sensor_cdd")               │
-│  → read() para obtener valor             │
-│  → write("0" o "1") para elegir sensor   │
-├──────────────────────────────────────────┤
-│  Character Device File (/dev/sensor_cdd) │
-│  → creado automáticamente por udev       │
-│  → vinculado al driver por <major,minor> │
-├──────────────────────────────────────────┤
-│  Character Device Driver (sensor_drv.ko) │
-│  → sensor_read(): lee GPIO, copy_to_user │
-│  → sensor_write(): selecciona canal      │
-│  → timer: muestrea cada 1 segundo        │
-├──────────────────────────────────────────┤
-│  Hardware: GPIO pins de Raspberry Pi     │
-│  → GPIO 17: sensor de temperatura        │
-│  → GPIO 27: sensor de luminosidad        │
-└──────────────────────────────────────────┘
+| Capa / Componente | Descripción y Funciones Clave |
+| :--- | :--- |
+| **Application**<br>`(sensor_app.py)` | <ul><li>`open("/dev/sensor_cdd")`</li><li>`read()` para obtener valor</li><li>`write("0" o "1")` para elegir sensor</li></ul> |
+| **Character Device File**<br>`(/dev/sensor_cdd)` | <ul><li>Creado automáticamente por `udev`</li><li>Vinculado al driver por `<major,minor>`</li></ul> |
+| **Character Device Driver**<br>`(sensor_drv.ko)` | <ul><li>`sensor_read()`: lee GPIO, `copy_to_user`</li><li>`sensor_write()`: selecciona canal</li><li>Timer: muestrea cada 1 segundo</li></ul> |
+| **Hardware**<br>`GPIO pins de Raspberry Pi` | <ul><li>GPIO 17: sensor de temperatura</li><li>GPIO 27: sensor de luminosidad</li></ul> |
 ## Desarrollo 
