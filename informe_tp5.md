@@ -19,15 +19,17 @@ Estos tres conceptos suelen confundirse, pero ocupan lugares distintos en la jer
 
 La jerarquía de capas queda así:
 
-Aplicación de usuario
-    ↕ (system calls)
-Device Driver (nuestro CDD)
-    ↕ (funciones del bus)
-Bus Driver (ya existente en el kernel)
-    ↕ (registros de hardware)
-Device Controller (chip GPIO del SoC)
-    ↕ (señales eléctricas)
-Dispositivo físico (sensor)
+graph TD
+    A[Aplicación de usuario]
+    B[Device Driver <br><i>nuestro CDD</i>]
+    C[Bus Driver <br><i>ya existente en el kernel</i>]
+    D[Device Controller <br><i>chip GPIO del SoC</i>]
+    E[Dispositivo físico <br><i>sensor</i>]
+
+    A <--> |system calls| B
+    B <--> |funciones del bus| C
+    C <--> |registros de hardware| D
+    D <--> |señales eléctricas| E
 ### Clasificación de drivers en Linux
 Linux clasifica los dispositivos en tres verticales según cómo se transfieren los datos:
 Network (orientado a paquetes): tarjetas de red, wifi, bluetooth. Transmiten datos como paquetes con cabeceras y protocolos.
