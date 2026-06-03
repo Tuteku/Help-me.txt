@@ -21,19 +21,19 @@ La jerarquía de capas queda así:
 
  Aplicación de usuario
 
-    ↕ (system calls)
+   ↕ (system calls)
 
 Device Driver (nuestro CDD)
 
-    ↕ (funciones del bus)
+   ↕ (funciones del bus)
 
 Bus Driver (ya existente en el kernel)
 
-    ↕ (registros de hardware)
+   ↕ (registros de hardware)
 
 Device Controller (chip GPIO del SoC)
 
-    ↕ (señales eléctricas)
+   ↕ (señales eléctricas)
 
 Dispositivo físico (sensor) 
 ### Clasificación de drivers en Linux
@@ -54,19 +54,30 @@ La compilación cruzada (cross-compilation) consiste en compilar código en una 
 Para esto se necesitan dos elementos: un cross-compiler (gcc para ARM, como arm-linux-gnueabihf-gcc) y los headers del kernel que está corriendo en la Raspberry Pi. El Makefile invoca al sistema de build del kernel (kbuild) pasándole las variables ARCH y CROSS_COMPILE para que genere un .ko compatible con ARM.
 
 El flujo de trabajo es:
+ [PC Host x86_64]                          [Raspberry Pi ARM]
 
-[PC Host x86_64]                          [Raspberry Pi ARM]
                                           
+
  Código fuente (.c)                       
+
       |                                   
+
  Cross-compilación (make)                 
+
       |                                   
+
  sensor_drv.ko (ARM)                      
+
       |                                   
+
  scp via SSH ─────────────────────────>  sensor_drv.ko
+
                                                |
+
                                           sudo insmod
+
                                                |
+
                                           /dev/sensor_cdd
                                           
 ### GPIO y señales digitales
