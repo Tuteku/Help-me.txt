@@ -9,6 +9,7 @@ Integrantes:
 Enlace al repositorio en github: https://github.com/Tuteku/Help-me.txt
 ## Introduccion
 Este trabajo práctico consiste en el diseño e implementación de un Character Device Driver (CDD) para el kernel de Linux que permita sensar dos señales externas con un período de muestreo de un segundo. Complementariamente, se desarrolla una aplicación de espacio de usuario capaz de leer una de las dos señales a través del CDD y graficarla en función del tiempo.
+
 El objetivo es recorrer todo el camino que va desde el hardware (pines GPIO de una Raspberry Pi) hasta una representación visual en pantalla, pasando por las capas de abstracción que provee el kernel. En ese recorrido se ponen en práctica los conceptos de módulos del kernel, registración de dispositivos, file_operations, y la comunicación entre kernel space y user space.
 ## Marco Teórico
 ### Driver, Device Controller y Bus Driver
@@ -38,9 +39,9 @@ Device Controller (chip GPIO del SoC)
 Dispositivo físico (sensor) 
 ### Clasificación de drivers en Linux
 Linux clasifica los dispositivos en tres verticales según cómo se transfieren los datos:
-Network (orientado a paquetes): tarjetas de red, wifi, bluetooth. Transmiten datos como paquetes con cabeceras y protocolos.
-Storage/Block (orientado a bloques): discos duros, pendrives, tarjetas SD. Los datos se leen y escriben en bloques de tamaño fijo (típicamente 512 bytes o 4 KB).
-Character (orientado a bytes): todo lo demás. Puertos serie, teclados, ratones, sensores, cámaras, audio. Los datos se transfieren byte a byte, sin estructura de bloque. Este es el grupo mayoritario, y es donde se ubica nuestro driver.
+- Network (orientado a paquetes): tarjetas de red, wifi, bluetooth. Transmiten datos como paquetes con cabeceras y protocolos.
+- Storage/Block (orientado a bloques): discos duros, pendrives, tarjetas SD. Los datos se leen y escriben en bloques de tamaño fijo (típicamente 512 bytes o 4 KB).
+- Character (orientado a bytes): todo lo demás. Puertos serie, teclados, ratones, sensores, cámaras, audio. Los datos se transfieren byte a byte, sin estructura de bloque. Este es el grupo mayoritario, y es donde se ubica nuestro driver.
 ### Character Device Driver
 
 Un CDD en Linux se compone de los siguientes elementos:
@@ -51,6 +52,7 @@ Un CDD en Linux se compone de los siguientes elementos:
 - Transferencia de datos: dado que el kernel y el espacio de usuario tienen espacios de memoria separados, se usan las funciones copy_to_user() (para read) y copy_from_user() (para write) para mover datos de forma segura entre ambos mundos.
 ### Compilación cruzada
 La compilación cruzada (cross-compilation) consiste en compilar código en una máquina (el host) para que se ejecute en otra con arquitectura diferente (el target). En nuestro caso el host es una PC x86_64 y el target es la Raspberry Pi con procesador ARM.
+
 Para esto se necesitan dos elementos: un cross-compiler (gcc para ARM, como arm-linux-gnueabihf-gcc) y los headers del kernel que está corriendo en la Raspberry Pi. El Makefile invoca al sistema de build del kernel (kbuild) pasándole las variables ARCH y CROSS_COMPILE para que genere un .ko compatible con ARM.
 
 El flujo de trabajo es:
@@ -82,7 +84,9 @@ El flujo de trabajo es:
                                           
 ### GPIO y señales digitales
 Los pines GPIO de la Raspberry Pi operan con lógica de 3.3V. Cuando se configuran como entrada, leen HIGH (1) si la tensión supera ~1.8V, o LOW (0) si está por debajo.
+
 Al conectar un generador de señales, la señal analógica queda digitalizada por este umbral. Dado que nuestro período de muestreo es de 1 segundo, la frecuencia de la señal debe ser menor a 0.5 Hz (criterio de Nyquist) para capturar correctamente las transiciones.
+
 Los GPIO toleran un máximo de 3.3V. Se recomienda intercalar una resistencia de 1kΩ en serie como protección.
 
 ## Desarrollo 
