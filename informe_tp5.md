@@ -72,11 +72,11 @@ El flujo de trabajo es:
 
  scp via SSH ─────────────────────────>  sensor_drv.ko
 
-                                               |
+                                              |
 
                                           sudo insmod
 
-                                               |
+                                              |
 
                                           /dev/sensor_cdd
                                           
