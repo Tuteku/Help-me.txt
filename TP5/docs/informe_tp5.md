@@ -52,17 +52,17 @@ Los GPIO toleran un máximo de 3.3V. Se recomienda intercalar una resistencia de
 
 ## Desarrollo
 
-El desarrollo se dividió en dos grandes etapas: (1) la construcción y carga del Character Device Driver mediante compilación cruzada, y (2) la aplicación de usuario con visualización web. A continuación se documenta el flujo completo con las capturas de cada paso.
+El desarrollo se dividió en dos grandes etapas:  la construcción y carga del Character Device Driver mediante compilación cruzada, y la aplicación de usuario con visualización web. A continuación se documenta el flujo completo con las capturas de cada paso.
 
 ### 1. Entorno de compilación cruzada
 
-El host es una PC x86_64 con Ubuntu 24.04 y el target una Raspberry Pi 5 (SoC BCM2712, con los GPIO del header gestionados por el chip RP1) corriendo Raspberry Pi OS con kernel `6.12.25+rpt-rpi-2712` (aarch64).
+El host es una PC x86_64 con Ubuntu 24.04 y el target una Raspberry Pi 5 corriendo Raspberry Pi OS con kernel `6.12.25+rpt-rpi-2712` (aarch64).
 
 Para cross-compilar un módulo de kernel no alcanza con un compilador y los headers sueltos: se necesita el **árbol del kernel exacto** del target. Los pasos de preparación fueron:
 
-- Instalación del cross-compiler `aarch64-linux-gnu-gcc-12`. La versión 12 coincide con la que compiló el kernel de la Pi (registrada en `CONFIG_CC_VERSION_TEXT` del `.config`), evitando errores de `-Werror` por diferencias de versión.
-- Instalación en la Pi de los headers (`linux-headers-rpi-2712` y su parte común) y copia de ese árbol a la PC, replicando la ruta `/usr/src/linux-headers-6.12.25+rpt-rpi-2712`.
-- Los paquetes de headers de Debian/RPi traen sus herramientas internas de build (`fixdep`, `modpost`) compiladas para ARM64 y sin código fuente para recompilarlas en x86. Para ejecutarlas se usó `qemu-user-static` (emulación *user-mode* vía `binfmt_misc`), con la variable `QEMU_LD_PREFIX` apuntando al sysroot ARM64 del toolchain para resolver el cargador dinámico y la libc.
+- Instalación del cross-compiler `aarch64-linux-gnu-gcc-12`.
+- Instalación en la Pi de los headers (`linux-headers-rpi-2712`) y copia de ese árbol a la PC, replicando la ruta `/usr/src/linux-headers-6.12.25+rpt-rpi-2712`.
+- Los paquetes de headers de Debian/RPi traen sus herramientas internas de build compiladas para ARM64 y sin código fuente para recompilarlas en x86. Para ejecutarlas se usó `qemu-user-static`, con la variable `QEMU_LD_PREFIX` apuntando al sysroot ARM64 del toolchain para resolver el cargador dinámico y la libc.
 
 ### 2. Compilación cruzada del módulo
 
@@ -76,8 +76,6 @@ El build genera el conjunto de artefactos en el directorio del driver:
 
 ![Archivos generados por el build](assets/tp5_2_files_make.png)
 
-El archivo relevante es `signar_cdd.ko` (15 K), el módulo ARM64 listo para cargar. Su *vermagic* quedó en `6.12.25+rpt-rpi-2712 ... aarch64`, idéntico al del kernel de la Pi, lo que garantiza que `insmod` lo acepte sin rechazo.
-
 ### 3. Transferencia a la Raspberry Pi
 
 El módulo se envía a la Pi por SSH con `scp`:
@@ -90,15 +88,14 @@ En la Pi se inserta el módulo con `insmod` y se verifica en el log del kernel (
 
 ![Carga del módulo y dmesg](assets/tp5_4_carga_modulo.png)
 
-La captura documenta un detalle importante de la Raspberry Pi 5: el primer intento falló con `no se pudo obtener GPIO 17` (error `-EPROBE_DEFER`, 517). En la Pi 5 los pines del header cuelgan del chip **RP1** (`gpiochip0`), cuya base global **no es 0 sino 569**. La API legacy `gpio_request()` usa el número global = base + offset BCM, por lo que hubo que mapear **BCM17 → 586** y **BCM27 → 596**. Con esa corrección, el segundo intento muestra `modulo cargado correctamente` y se crea automáticamente el device `/dev/signal_cdd`.
+Podemos visualizar `modulo cargado correctamente` y se crea automáticamente el device `/dev/signal_cdd`.
 
 ### 5. Aplicación de usuario y servidor web
 
-La aplicación `sensor_app.py` corre **en la Pi**: lee `/dev/signal_cdd` una vez por segundo y expone los datos por HTTP en el puerto 8080 (usa solo la biblioteca estándar de Python 3, sin dependencias). Como el device pertenece a root, se le dan permisos de lectura/escritura (`chmod 666`) antes de lanzar el servidor:
+La aplicación `sensor_app.py` corre **en la Pi**, lee `/dev/signal_cdd` una vez por segundo y expone los datos por HTTP en el puerto 8080. Como el device pertenece a root, se le dan permisos de lectura/escritura (`chmod 666`) antes de lanzar el servidor:
 
 ![Lanzamiento del servidor Python](assets/tp5_5_levantar_py.png)
 
-El servidor confirma que está leyendo el CDD cada 1 s y sirviendo la web; las líneas `[CDD] Señal activa` aparecen cuando, desde el navegador, se cambia de canal (la app escribe '0' o '1' al CDD).
 
 ### 6. Visualización web
 
@@ -106,7 +103,7 @@ Desde el navegador de la PC host se accede a `http://172.26.88.185:8080`. Al ini
 
 ![Interfaz web inicial](assets/tp5_6_web.png)
 
-Conectando el generador al canal 1, se observa la señal cuadrada sensada en tiempo real (gráfico tipo escalera, con el eje en niveles 0 V / 3.3 V):
+Conectando el generador al canal 1, se observa la señal cuadrada sensada en tiempo real (con el eje en niveles 0 V / 3.3 V):
 
 ![Canal 1 sensando la señal](assets/tp5_7_ch1.png)
 
@@ -120,9 +117,9 @@ El driver, al recibir el cambio, actualiza la señal activa y resetea su buffer;
 
 Se utilizaron dos generadores de señales, uno por canal. Consideraciones de la conexión:
 
-- **Pines:** las señales van a **BCM17 (pin físico 11)** y **BCM27 (pin físico 13)**; la masa de los generadores a un **GND común** de la Pi (p. ej. pin físico 6), imprescindible para tener una referencia válida.
-- **Niveles:** los GPIO son entradas **digitales** de **3.3 V, no tolerantes a 5 V ni a tensiones negativas**. Cada generador se configuró como onda cuadrada entre 0 V y ~3.3 V (salida en modo alta impedancia para no duplicar la amplitud por el factor 50 Ω), con una resistencia de ~330 Ω en serie como protección.
-- **Frecuencia:** como el muestreo es de 1 Hz, por Nyquist la señal debe ser < 0.5 Hz; se usaron frecuencias del orden de 0.1–0.25 Hz para observar las transiciones con claridad.
+- **Pines:** las señales van a **GPIO17** y **GPIO27**.
+- **Niveles:** los GPIO son entradas **digitales** de **3.3 V**. Cada generador se configuró como onda cuadrada entre 0 V y ~3.3 V .
+- **Frecuencia:** como el muestreo es de 1 Hz, por Nyquist la señal debe ser < 0.5 Hz; se usaron frecuencias del orden de 0.1–0.5 Hz para observar las transiciones con claridad.
 
 Dado que la entrada es digital, el GPIO solo distingue dos estados (0/1) según el umbral (~1.8 V): el eje "Tensión [V]" de la web es una reconstrucción a nivel de usuario (`valor × 3.3`), no una medición analógica.
 
@@ -131,8 +128,6 @@ Dado que la entrada es digital, el GPIO solo distingue dos estados (0/1) según 
 En esta sección se relacionan las partes del código del CDD con los conceptos teóricos del material de la cátedra, y se documentan las verificaciones realizadas sobre el dispositivo.
 
 ### Registro del `<major, minor>` y vínculo CDF↔CDD
-
-Conectar el archivo de dispositivo (CDF) con el driver (CDD) se hace en dos pasos:
 
 1. **Registrar el rango `<major, minor>`.** El driver usa `alloc_chrdev_region(&dev_num, 0, NUM_DEVICES, DEVICE_NAME)`, que reserva un major **dinámico** (el kernel elige uno libre) con minor base 0. La alternativa `register_chrdev_region` permite pedir un par fijo; se eligió la dinámica por ser la práctica recomendada. El par queda almacenado en una variable de tipo `dev_t`, de la que se extraen las cifras con las macros `MAJOR(dev_num)` y `MINOR(dev_num)` (de `<linux/kdev_t.h>`).
 2. **Vincular las operaciones del CDF a las funciones del CDD.** Con `cdev_init(&signal_cdev, &fops)` se asocia la tabla `file_operations`, y con `cdev_add(&signal_cdev, dev_num, NUM_DEVICES)` se publica el cdev en el kernel: a partir de ese momento un `open()` sobre el archivo asociado a `dev_num` entra a nuestras funciones.
