@@ -416,8 +416,8 @@ def main():
         print(f"ERROR: {DEVICE_PATH} no existe.")
         print()
         print("En la Raspberry Pi, ejecutar:")
-        print("  sudo insmod sensor_drv.ko")
-        print("  sudo chmod 666 /dev/sensor_cdd")
+        print("  sudo insmod signar_cdd.ko")
+        print("  sudo chmod 666 /dev/signal_cdd")
         sys.exit(1)
 
     print("=" * 50)

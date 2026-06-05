@@ -1,0 +1,1 @@
+savedcmd_/home/nicolas/Documents/Facultad/SdeC/Help-me.txt/TP5/src/driver/Module.symvers :=  scripts/mod/modpost -M -m -a      -o /home/nicolas/Documents/Facultad/SdeC/Help-me.txt/TP5/src/driver/Module.symvers -T /home/nicolas/Documents/Facultad/SdeC/Help-me.txt/TP5/src/driver/modules.order -i Module.symvers -e 

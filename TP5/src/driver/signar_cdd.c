@@ -31,9 +31,16 @@
 #define CLASS_NAME      "signal_class"
 #define NUM_DEVICES     1
 
-/* --- Pines GPIO --- */
-#define GPIO_SIGNAL_0   17   /* Pin GPIO para la señal 0 (canal 1 del generador) */
-#define GPIO_SIGNAL_1   27   /* Pin GPIO para la señal 1 (canal 2 del generador) */
+/* --- Pines GPIO ---
+ * En la Raspberry Pi 5 los pines del header de 40 pines cuelgan del chip RP1
+ * (gpiochip0, pinctrl-rp1), cuya base global NO es 0. La API legacy
+ * gpio_request() usa el numero GLOBAL = base_del_chip + offset_BCM.
+ * En este kernel la base es 569 (verificar con: sudo cat /sys/kernel/debug/gpio).
+ * OJO: la base puede cambiar entre kernels/boots; si gpio_request vuelve a
+ * fallar con -EPROBE_DEFER (-517), reverificarla. */
+#define GPIO_RP1_BASE   569
+#define GPIO_SIGNAL_0   (GPIO_RP1_BASE + 17)   /* BCM17 -> global 586 (canal 1) */
+#define GPIO_SIGNAL_1   (GPIO_RP1_BASE + 27)   /* BCM27 -> global 596 (canal 2) */
 
 /* --- Buffer circular para almacenar muestras --- */
 #define BUFFER_SIZE     64
@@ -203,24 +210,24 @@ static int __init signal_init(void)
            MAJOR(dev_num), MINOR(dev_num));
 
     /* 3. Inicializar y agregar cdev (vincular fops) */
-    cdev_init(&sensor_cdev, &fops);
-    sensor_cdev.owner = THIS_MODULE;
-    ret = cdev_add(&sensor_cdev, dev_num, NUM_DEVICES);
+    cdev_init(&signal_cdev, &fops);
+    signal_cdev.owner = THIS_MODULE;
+    ret = cdev_add(&signal_cdev, dev_num, NUM_DEVICES);
     if (ret < 0) {
         printk(KERN_ALERT "signal_cdd: fallo cdev_add\n");
         goto fail_cdev;
     }
 
     /* 4. Crear clase y dispositivo (creacion automatica en /dev/) */
-    sensor_class = class_create(CLASS_NAME);
-    if (IS_ERR(sensor_class)) {
-        ret = PTR_ERR(sensor_class);
+    signal_class = class_create(CLASS_NAME);
+    if (IS_ERR(signal_class)) {
+        ret = PTR_ERR(signal_class);
         goto fail_class;
     }
 
-    sensor_device = device_create(sensor_class, NULL, dev_num, NULL, DEVICE_NAME);
-    if (IS_ERR(sensor_device)) {
-        ret = PTR_ERR(sensor_device);
+    signal_device = device_create(signal_class, NULL, dev_num, NULL, DEVICE_NAME);
+    if (IS_ERR(signal_device)) {
+        ret = PTR_ERR(signal_device);
         goto fail_device;
     }
 
@@ -242,7 +249,7 @@ static int __init signal_init(void)
     gpio_direction_input(GPIO_SIGNAL_1);
 
     /* 6. Configurar el timer de muestreo (1 segundo) */
-    timer_setup(&sdata->timer_muestreo, sensor_timer_callback, 0);
+    timer_setup(&sdata->timer_muestreo, signal_timer_callback, 0);
     mod_timer(&sdata->timer_muestreo, jiffies + HZ);
 
     printk(KERN_INFO "sensor_cdd: modulo cargado correctamente\n");
@@ -252,11 +259,11 @@ static int __init signal_init(void)
 fail_gpio1:
     gpio_free(GPIO_SIGNAL_0);
 fail_gpio0:
-    device_destroy(sensor_class, dev_num);
+    device_destroy(signal_class, dev_num);
 fail_device:
-    class_destroy(sensor_class);
+    class_destroy(signal_class);
 fail_class:
-    cdev_del(&sensor_cdev);
+    cdev_del(&signal_cdev);
 fail_cdev:
     unregister_chrdev_region(dev_num, NUM_DEVICES);
 fail_alloc:
@@ -267,22 +274,22 @@ fail_alloc:
 /* ================================================================
  * Destructor del modulo (rmmod)
  * ================================================================ */
-static void __exit sensor_exit(void)
+static void __exit signal_exit(void)
 {
     /* Desmontar todo en orden inverso al montaje */
     del_timer_sync(&sdata->timer_muestreo);
     gpio_free(GPIO_SIGNAL_1);
     gpio_free(GPIO_SIGNAL_0);
-    device_destroy(sensor_class, dev_num);
-    class_destroy(sensor_class);
-    cdev_del(&sensor_cdev);
+    device_destroy(signal_class, dev_num);
+    class_destroy(signal_class);
+    cdev_del(&signal_cdev);
     unregister_chrdev_region(dev_num, NUM_DEVICES);
     kfree(sdata);
     printk(KERN_INFO "sensor_cdd: modulo removido\n");
 }
 
-module_init(sensor_init);
-module_exit(sensor_exit);
+module_init(signal_init);
+module_exit(signal_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Help-me.txt");
