@@ -20,23 +20,7 @@ Estos tres conceptos suelen confundirse, pero ocupan lugares distintos en la jer
 
 La jerarquía de capas queda así:
 
- Aplicación de usuario
-
-   ↕ (system calls)
-
-Device Driver (nuestro CDD)
-
-   ↕ (funciones del bus)
-
-Bus Driver (ya existente en el kernel)
-
-   ↕ (registros de hardware)
-
-Device Controller (chip GPIO del SoC)
-
-   ↕ (señales eléctricas)
-
-Dispositivo físico (sensor) 
+![jerarquia](./assets/linux_driver_stack.svg)
 ### Clasificación de drivers en Linux
 Linux clasifica los dispositivos en tres verticales según cómo se transfieren los datos:
 - Network (orientado a paquetes): tarjetas de red, wifi, bluetooth. Transmiten datos como paquetes con cabeceras y protocolos.
@@ -56,31 +40,8 @@ La compilación cruzada (cross-compilation) consiste en compilar código en una 
 Para esto se necesitan dos elementos: un cross-compiler (gcc para ARM de 64 bits, aarch64-linux-gnu-gcc) y los headers del kernel que está corriendo en la Raspberry Pi. El Makefile invoca al sistema de build del kernel (kbuild) pasándole las variables ARCH y CROSS_COMPILE para que genere un .ko compatible con ARM.
 
 El flujo de trabajo es:
- [PC Host x86_64]                          [Raspberry Pi ARM]
 
-                                          
-
- Código fuente (.c)                       
-
-   |                                   
-
- Cross-compilación (make)                 
-
-      |                                   
-
- signar_cdd.ko (ARM)                      
-
-      |                                   
-
- scp via SSH ─────────────────────────>  signar_cdd.ko
-
-                                              |
-
-                                          sudo insmod
-
-                                              |
-
-                                          /dev/signal_cdd
+![Diagrama cross-compilación](./assets/cross_compilation_deploy_flow_v5.svg)
                                           
 ### GPIO y señales digitales
 Los pines GPIO de la Raspberry Pi operan con lógica de 3.3V. Cuando se configuran como entrada, leen HIGH (1) si la tensión supera ~1.8V, o LOW (0) si está por debajo.
