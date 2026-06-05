@@ -165,6 +165,44 @@ Se utilizaron dos generadores de señales, uno por canal. Consideraciones de la 
 
 Dado que la entrada es digital, el GPIO solo distingue dos estados (0/1) según el umbral (~1.8 V): el eje "Tensión [V]" de la web es una reconstrucción a nivel de usuario (`valor × 3.3`), no una medición analógica.
 
+## Análisis del driver
+
+En esta sección se relacionan las partes del código del CDD con los conceptos teóricos del material de la cátedra, y se documentan las verificaciones realizadas sobre el dispositivo.
+
+### Registro del `<major, minor>` y vínculo CDF↔CDD
+
+Conectar el archivo de dispositivo (CDF) con el driver (CDD) se hace en dos pasos:
+
+1. **Registrar el rango `<major, minor>`.** El driver usa `alloc_chrdev_region(&dev_num, 0, NUM_DEVICES, DEVICE_NAME)`, que reserva un major **dinámico** (el kernel elige uno libre) con minor base 0. La alternativa `register_chrdev_region` permite pedir un par fijo; se eligió la dinámica por ser la práctica recomendada. El par queda almacenado en una variable de tipo `dev_t`, de la que se extraen las cifras con las macros `MAJOR(dev_num)` y `MINOR(dev_num)` (de `<linux/kdev_t.h>`).
+2. **Vincular las operaciones del CDF a las funciones del CDD.** Con `cdev_init(&signal_cdev, &fops)` se asocia la tabla `file_operations`, y con `cdev_add(&signal_cdev, dev_num, NUM_DEVICES)` se publica el cdev en el kernel: a partir de ese momento un `open()` sobre el archivo asociado a `dev_num` entra a nuestras funciones.
+
+Es importante el detalle que remarca la teoría: el vínculo **App↔CDF** se basa en el *nombre* del archivo, pero el vínculo **CDF↔CDD** se basa en el *número* `<major, minor>`, no en el nombre. Esto se verifica en la Pi:
+
+![Verificación del major y minor](assets/tp5_9_major_minor.png)
+
+`ls -l` muestra `crw-rw-rw- ... 509, 0`: la `c` indica *character device*, y `509, 0` es el par `<major, minor>`. `cat /proc/devices | grep 509` confirma que el kernel registró el major **509** con el nombre `signal_cdd`. Que ambos coincidan prueba el enlace por número. El major es alto y dinámico (asignado por `alloc_chrdev_region`), y el minor es 0 porque se registró un único dispositivo (`NUM_DEVICES = 1`).
+
+### Creación automática del Character Device File
+
+Históricamente el CDF se creaba a mano con `mknod /dev/... c <major> <minor>`. El driver, en cambio, usa la creación automática: `class_create(CLASS_NAME)` crea una clase en sysfs y `device_create(signal_class, NULL, dev_num, NULL, DEVICE_NAME)` publica la información del dispositivo (incluido el `<major, minor>`) bajo `/sys/class`. El demonio **udev** lee esa información y crea solo el archivo `/dev/signal_cdd`. Esto se puede comprobar por sysfs con `cat /sys/class/signal_class/signal_cdd/dev`, que devuelve `509:0`. Las llamadas inversas (`device_destroy` y `class_destroy`) se invocan en orden cronológicamente inverso al descargar el módulo.
+
+### Operaciones del `file_operations` y semántica de `read`/`write`
+
+La tabla `fops` vincula las syscalls con las funciones del driver: `open→signal_open`, `read→signal_read`, `write→signal_write`, `release→signal_close`.
+
+- **`open`/`release`** son triviales: solo registran un mensaje en el log y devuelven `0` (éxito).
+- **`read` y `write` devuelven `ssize_t`** (palabra con signo): un valor **negativo** indica error (p. ej. `-EFAULT`), y uno **positivo** es la cantidad de bytes transferidos. En `signal_read` se formatea el valor lógico como `"0\n"`/`"1\n"`, se copia a espacio de usuario con `copy_to_user` y se devuelve la cantidad de bytes; el manejo de **EOF** se resuelve con `if (*offset > 0) return 0;`, que hace que una segunda lectura consecutiva devuelva 0 (fin de archivo) en lugar de repetir el dato. En `signal_write` se toma un byte con `copy_from_user`, se valida que sea `'0'` o `'1'` para seleccionar la señal activa, y se devuelve `len` (bytes consumidos).
+
+Esto explica el comportamiento observado al probar con `cat` (lectura) y `echo` (escritura) sobre el device.
+
+### Ciclo de vida del módulo: constructor y destructor
+
+El kernel es, en esencia, una implementación orientada a objetos en C: cada driver tiene un **constructor** (`module_init` → `signal_init`, se ejecuta con `insmod`) y un **destructor** (`module_exit` → `signal_exit`, se ejecuta con `rmmod`). El destructor desmonta todo en orden inverso al montaje: `del_timer_sync` (espera a que termine cualquier callback en curso), `gpio_free` de ambos pines, `device_destroy`, `class_destroy`, `cdev_del`, `unregister_chrdev_region` y `kfree`. El ciclo completo se verifica en el log del kernel:
+
+![Carga y descarga del módulo](assets/tp5_10_bajar_modulo.png)
+
+Se observan las cuatro etapas: inicialización, asignación del `<major, minor>` (509/0), `modulo cargado correctamente` (constructor, tras `insmod`) y `modulo removido` (destructor, tras `rmmod`). Luego de la descarga, `/dev/signal_cdd` desaparece y el major 509 se libera de `/proc/devices`, confirmando que la limpieza fue correcta.
+
 ## Conclusiones
 
 Se implementó con éxito un Character Device Driver para Linux que sensa dos señales digitales por GPIO con período de muestreo de 1 segundo, junto con una aplicación de usuario que las sirve por una interfaz web. El driver se construyó por compilación cruzada desde una PC x86_64 hacia la arquitectura ARM64 de la Raspberry Pi 5 y se cargó vía SSH, validando todo el flujo de trabajo.
