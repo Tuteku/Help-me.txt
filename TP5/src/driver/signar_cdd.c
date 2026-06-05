@@ -31,7 +31,7 @@
 #define CLASS_NAME      "signal_class"
 #define NUM_DEVICES     1
 
-/* --- Pines GPIO (ajustar segun conexion fisica) --- */
+/* --- Pines GPIO --- */
 #define GPIO_SIGNAL_0   17   /* Pin GPIO para la señal 0 (canal 1 del generador) */
 #define GPIO_SIGNAL_1   27   /* Pin GPIO para la señal 1 (canal 2 del generador) */
 
