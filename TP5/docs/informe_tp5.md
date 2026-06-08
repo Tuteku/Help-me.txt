@@ -1,4 +1,4 @@
-# Informe TP5 — Módulos de Kernel de Linux
+# Informe TP5 — Diseño e implementación de un Character Device Driver (CDD)
 
 ### Help-me.txt
 Integrantes:
@@ -49,7 +49,7 @@ Los pines GPIO de la Raspberry Pi operan con lógica de 3.3V. Cuando se configur
 
 Al conectar un generador de señales, la señal analógica queda digitalizada por este umbral. Dado que nuestro período de muestreo es de 1 segundo, la frecuencia de la señal debe ser menor a 0.5 Hz (criterio de Nyquist) para capturar correctamente las transiciones.
 
-Los GPIO toleran un máximo de 3.3V. Se recomienda intercalar una resistencia de 1kΩ en serie como protección.
+Los GPIO toleran un máximo de 3.3V. 
 
 ## Desarrollo
 
@@ -136,3 +136,7 @@ Tras la descarga, `/dev/signal_cdd` desaparece y el major 509 se libera de `/pro
 Se implementó con éxito un Character Device Driver para Linux que sensa dos señales digitales por GPIO con período de muestreo de 1 segundo, junto con una aplicación de usuario que las sirve por una interfaz web. El driver se construyó por compilación cruzada desde una PC x86_64 hacia la arquitectura ARM64 de la Raspberry Pi 5 y se cargó vía SSH, validando todo el flujo de trabajo.
 
 Los puntos que más trabajo dieron fueron tres. Primero, la compilación cruzada de un módulo requiere el árbol del kernel exacto del target, no solo los headers sueltos, y el *version magic* tiene que coincidir al byte. Segundo, los paquetes de headers de Raspberry Pi OS traen sus herramientas internas compiladas solo para ARM64, así que hubo que emularlas con `qemu-user-static` desde la PC x86. Tercero, la Raspberry Pi 5 gestiona los GPIO a través del chip RP1, lo que desplaza la base del *numberspace* global y rompe los números de pin de la API legacy; ajustando esos números se resolvió el `-EPROBE_DEFER` que aparecía al cargar el módulo.
+
+Implementacion:
+
+![Implementacion circuito fisico](assets/circuito_fisico.jpeg)
