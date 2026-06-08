@@ -8,9 +8,9 @@ Integrantes:
 
 Enlace al repositorio en github: https://github.com/Tuteku/Help-me.txt
 ## Introduccion
-Este trabajo práctico consiste en el diseño e implementación de un Character Device Driver (CDD) para el kernel de Linux que permita sensar dos señales externas con un período de muestreo de un segundo. Complementariamente, se desarrolla una aplicación de espacio de usuario capaz de leer una de las dos señales a través del CDD y graficarla en función del tiempo.
+Este trabajo práctico consiste en el diseño e implementación de un Character Device Driver (CDD) para el kernel de Linux que sensa dos señales externas con un período de muestreo de un segundo. Como complemento, se desarrolló una aplicación de espacio de usuario que lee una de las dos señales a través del CDD y la grafica en tiempo real en una interfaz web servida desde la propia Raspberry Pi.
 
-El desarrollo sigue un flujo de compilación cruzada (cross-compilation): el código se escribe y compila en una PC host (x86_64) apuntando a la arquitectura ARM de la Raspberry Pi, y los binarios resultantes se transfieren vía SSH. La visualización se realiza mediante una interfaz web servida desde la propia RPi, accesible desde el navegador de la PC host.
+Para compilar el módulo se usó compilación cruzada (cross-compilation): el código se escribe y compila en una PC host (x86_64) apuntando a la arquitectura ARM de la Raspberry Pi, y los binarios resultantes se transfieren vía SSH. Desde el navegador de la PC host se accede al gráfico en tiempo real.
 ## Marco Teórico
 ### Driver, Device Controller y Bus Driver
 Estos tres conceptos suelen confundirse, pero ocupan lugares distintos en la jerarquía de hardware y software:
@@ -26,14 +26,15 @@ Linux clasifica los dispositivos en tres verticales según cómo se transfieren 
 - Network (orientado a paquetes): tarjetas de red, wifi, bluetooth. Transmiten datos como paquetes con cabeceras y protocolos.
 - Storage/Block (orientado a bloques): discos duros, pendrives, tarjetas SD. Los datos se leen y escriben en bloques de tamaño fijo (típicamente 512 bytes o 4 KB).
 - Character (orientado a bytes): puertos serie, teclados, ratones, sensores, cámaras, audio. Los datos se transfieren byte a byte, sin estructura de bloque. Este es el grupo mayoritario, y es donde se ubica nuestro driver.
+  
 ### Character Device Driver
-
 Un CDD en Linux se compone de los siguientes elementos:
 - Módulo del kernel (.ko): el driver se empaqueta como un módulo cargable. Tiene un constructor (module_init) que se ejecuta al hacer insmod y un destructor (module_exit) que se ejecuta al hacer rmmod.
 - Major y Minor numbers: el major number identifica qué driver maneja un dispositivo. El minor number distingue entre múltiples instancias del mismo driver. Juntos forman el par <major, minor> que el kernel usa para vincular un archivo de /dev/ con su driver correspondiente.
 - Character Device File (CDF): es el archivo especial que aparece en /dev/ (por ejemplo /dev/signal_cdd). Las aplicaciones de usuario interactúan con este archivo usando las llamadas estándar de archivos.
 - file_operations: es la estructura central del driver. Es una tabla que le dice al kernel qué función ejecutar cuando el usuario hace open(), read(), write() o close() sobre el archivo del dispositivo.
 - Transferencia de datos: dado que el kernel y el espacio de usuario tienen espacios de memoria separados, se usan las funciones copy_to_user() (para read) y copy_from_user() (para write) para mover datos de forma segura entre ambos mundos.
+  
 ### Compilación cruzada
 La compilación cruzada (cross-compilation) consiste en compilar código en una máquina para que se ejecute en otra con arquitectura diferente. En nuestro caso el host es una PC x86_64 y el target es la Raspberry Pi con procesador ARM.
 
@@ -52,7 +53,7 @@ Los GPIO toleran un máximo de 3.3V. Se recomienda intercalar una resistencia de
 
 ## Desarrollo
 
-El desarrollo se dividió en dos grandes etapas:  la construcción y carga del Character Device Driver mediante compilación cruzada, y la aplicación de usuario con visualización web. A continuación se documenta el flujo completo con las capturas de cada paso.
+El trabajo se dividió en dos etapas: la construcción y carga del CDD mediante compilación cruzada, y la aplicación de usuario con visualización web. Lo que sigue documenta el flujo completo con las capturas de cada paso.
 
 ### 1. Entorno de compilación cruzada
 
@@ -88,11 +89,11 @@ En la Pi se inserta el módulo con `insmod` y se verifica en el log del kernel (
 
 ![Carga del módulo y dmesg](assets/tp5_4_carga_modulo.png)
 
-Podemos visualizar `modulo cargado correctamente` y se crea automáticamente el device `/dev/signal_cdd`.
+El `dmesg` muestra `modulo cargado correctamente`. En ese momento el driver registró dinámicamente el par `<major, minor>` — en nuestro caso `509, 0` — y el demonio `udev` leyó esa información desde sysfs y creó automáticamente el archivo `/dev/signal_cdd`. Esto se puede verificar con `ls -l /dev/signal_cdd`, que muestra la `c` de *character device* seguida del par `509, 0`.
 
 ### 5. Aplicación de usuario y servidor web
 
-La aplicación `sensor_app.py` corre **en la Pi**, lee `/dev/signal_cdd` una vez por segundo y expone los datos por HTTP en el puerto 8080. Como el device pertenece a root, se le dan permisos de lectura/escritura (`chmod 666`) antes de lanzar el servidor:
+La aplicación `sensor_app.py` corre **en la Pi**, lee `/dev/signal_cdd` una vez por segundo y expone los datos por HTTP en el puerto 8080. Internamente, cada lectura del device devuelve `"0\n"` o `"1\n"` según el estado del GPIO; escribir `'0'` o `'1'` en el mismo archivo cambia el canal activo. Como el device pertenece a root, se le dan permisos de lectura/escritura (`chmod 666`) antes de lanzar el servidor:
 
 ![Lanzamiento del servidor Python](assets/tp5_5_levantar_py.png)
 
@@ -123,44 +124,15 @@ Se utilizaron dos generadores de señales, uno por canal. Consideraciones de la 
 
 Dado que la entrada es digital, el GPIO solo distingue dos estados (0/1) según el umbral (~1.8 V): el eje "Tensión [V]" de la web es una reconstrucción a nivel de usuario (`valor × 3.3`), no una medición analógica.
 
-## Análisis del driver
+### 8. Descarga del módulo
 
-En esta sección se relacionan las partes del código del CDD con los conceptos teóricos del material de la cátedra, y se documentan las verificaciones realizadas sobre el dispositivo.
-
-### Registro del `<major, minor>` y vínculo CDF↔CDD
-
-1. **Registrar el rango `<major, minor>`.** El driver usa `alloc_chrdev_region(&dev_num, 0, NUM_DEVICES, DEVICE_NAME)`, que reserva un major **dinámico** (el kernel elige uno libre) con minor base 0. La alternativa `register_chrdev_region` permite pedir un par fijo; se eligió la dinámica por ser la práctica recomendada. El par queda almacenado en una variable de tipo `dev_t`, de la que se extraen las cifras con las macros `MAJOR(dev_num)` y `MINOR(dev_num)` (de `<linux/kdev_t.h>`).
-2. **Vincular las operaciones del CDF a las funciones del CDD.** Con `cdev_init(&signal_cdev, &fops)` se asocia la tabla `file_operations`, y con `cdev_add(&signal_cdev, dev_num, NUM_DEVICES)` se publica el cdev en el kernel: a partir de ese momento un `open()` sobre el archivo asociado a `dev_num` entra a nuestras funciones.
-
-Es importante el detalle que remarca la teoría: el vínculo **App↔CDF** se basa en el *nombre* del archivo, pero el vínculo **CDF↔CDD** se basa en el *número* `<major, minor>`, no en el nombre. Esto se verifica en la Pi:
-
-![Verificación del major y minor](assets/tp5_9_major_minor.png)
-
-`ls -l` muestra `crw-rw-rw- ... 509, 0`: la `c` indica *character device*, y `509, 0` es el par `<major, minor>`. `cat /proc/devices | grep 509` confirma que el kernel registró el major **509** con el nombre `signal_cdd`. Que ambos coincidan prueba el enlace por número. El major es alto y dinámico (asignado por `alloc_chrdev_region`), y el minor es 0 porque se registró un único dispositivo (`NUM_DEVICES = 1`).
-
-### Creación automática del Character Device File
-
-Históricamente el CDF se creaba a mano con `mknod /dev/... c <major> <minor>`. El driver, en cambio, usa la creación automática: `class_create(CLASS_NAME)` crea una clase en sysfs y `device_create(signal_class, NULL, dev_num, NULL, DEVICE_NAME)` publica la información del dispositivo (incluido el `<major, minor>`) bajo `/sys/class`. El demonio **udev** lee esa información y crea solo el archivo `/dev/signal_cdd`. Esto se puede comprobar por sysfs con `cat /sys/class/signal_class/signal_cdd/dev`, que devuelve `509:0`. Las llamadas inversas (`device_destroy` y `class_destroy`) se invocan en orden cronológicamente inverso al descargar el módulo.
-
-### Operaciones del `file_operations` y semántica de `read`/`write`
-
-La tabla `fops` vincula las syscalls con las funciones del driver: `open→signal_open`, `read→signal_read`, `write→signal_write`, `release→signal_close`.
-
-- **`open`/`release`** son triviales: solo registran un mensaje en el log y devuelven `0` (éxito).
-- **`read` y `write` devuelven `ssize_t`** (palabra con signo): un valor **negativo** indica error (p. ej. `-EFAULT`), y uno **positivo** es la cantidad de bytes transferidos. En `signal_read` se formatea el valor lógico como `"0\n"`/`"1\n"`, se copia a espacio de usuario con `copy_to_user` y se devuelve la cantidad de bytes; el manejo de **EOF** se resuelve con `if (*offset > 0) return 0;`, que hace que una segunda lectura consecutiva devuelva 0 (fin de archivo) en lugar de repetir el dato. En `signal_write` se toma un byte con `copy_from_user`, se valida que sea `'0'` o `'1'` para seleccionar la señal activa, y se devuelve `len` (bytes consumidos).
-
-Esto explica el comportamiento observado al probar con `cat` (lectura) y `echo` (escritura) sobre el device.
-
-### Ciclo de vida del módulo: constructor y destructor
-
-El kernel es, en esencia, una implementación orientada a objetos en C: cada driver tiene un **constructor** (`module_init` → `signal_init`, se ejecuta con `insmod`) y un **destructor** (`module_exit` → `signal_exit`, se ejecuta con `rmmod`). El destructor desmonta todo en orden inverso al montaje: `del_timer_sync` (espera a que termine cualquier callback en curso), `gpio_free` de ambos pines, `device_destroy`, `class_destroy`, `cdev_del`, `unregister_chrdev_region` y `kfree`. El ciclo completo se verifica en el log del kernel:
+Una vez terminadas las pruebas, el módulo se descarga con `rmmod`. El destructor del driver (`module_exit`) desmonta todo en orden inverso: libera los GPIO, destruye el device y la clase en sysfs, elimina el cdev y libera el major. El `dmesg` lo confirma:
 
 ![Carga y descarga del módulo](assets/tp5_10_bajar_modulo.png)
 
-Se observan las cuatro etapas: inicialización, asignación del `<major, minor>` (509/0), `modulo cargado correctamente` (constructor, tras `insmod`) y `modulo removido` (destructor, tras `rmmod`). Luego de la descarga, `/dev/signal_cdd` desaparece y el major 509 se libera de `/proc/devices`, confirmando que la limpieza fue correcta.
-
+Tras la descarga, `/dev/signal_cdd` desaparece y el major 509 se libera de `/proc/devices`.
 ## Conclusiones
 
 Se implementó con éxito un Character Device Driver para Linux que sensa dos señales digitales por GPIO con período de muestreo de 1 segundo, junto con una aplicación de usuario que las sirve por una interfaz web. El driver se construyó por compilación cruzada desde una PC x86_64 hacia la arquitectura ARM64 de la Raspberry Pi 5 y se cargó vía SSH, validando todo el flujo de trabajo.
 
-Los principales aprendizajes prácticos fueron: (a) la compilación cruzada de un módulo requiere el árbol del kernel exacto del target y la coincidencia del *version magic* y del compilador; (b) los paquetes de headers binarios obligaron a emular con QEMU las herramientas de build provistas solo para ARM64; y (c) la Raspberry Pi 5, al gestionar los GPIO mediante el chip RP1, reubica la base del *numberspace* global, lo que obligó a ajustar los números de pin de la API legacy para evitar el `-EPROBE_DEFER`.
+Los puntos que más trabajo dieron fueron tres. Primero, la compilación cruzada de un módulo requiere el árbol del kernel exacto del target, no solo los headers sueltos, y el *version magic* tiene que coincidir al byte. Segundo, los paquetes de headers de Raspberry Pi OS traen sus herramientas internas compiladas solo para ARM64, así que hubo que emularlas con `qemu-user-static` desde la PC x86. Tercero, la Raspberry Pi 5 gestiona los GPIO a través del chip RP1, lo que desplaza la base del *numberspace* global y rompe los números de pin de la API legacy; ajustando esos números se resolvió el `-EPROBE_DEFER` que aparecía al cargar el módulo.
